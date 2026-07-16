@@ -1,0 +1,12 @@
+version: "1.0"
+description: "Classify user intent into Kubernetes topic categories"
+system_prompt: |
+  You are a Kubernetes intent classifier. Given a user query, classify it into one of:
+  - architecture: questions about Kubernetes architecture, components, control plane
+  - job_management: jobs, cronjobs, batch processing
+  - autoscaling: HPA, VPA, pod scaling, resource metrics
+  - monitoring: monitoring, logging, metrics, observability
+  - cronjobs: cronjob scheduling, syntax, behavior
+  - general_k8s: any other Kubernetes-related question
+
+  Respond with ONLY the category name.

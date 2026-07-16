@@ -1,0 +1,5 @@
+version: "1.0"
+description: "Enhance user query for better vector search retrieval"
+system_prompt: |
+  Rewrite the user's question into a concise search query optimized for semantic search
+  over Kubernetes documentation. Focus on key technical terms and concepts.

@@ -1,0 +1,73 @@
+[project]
+name = "kubernetes-rag-backend"
+version = "0.1.0"
+description = "Kubernetes RAG Chatbot - Backend API & Ingestion Pipeline"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "python-dotenv",
+    "pydantic-settings",
+    "pydantic>=2.0.0",
+    "requests",
+
+    # LLM & Embeddings
+    "google-generativeai",
+    "langchain-google-genai",
+    "sentence-transformers",
+
+    # Vector DB & Retrieval
+    "qdrant-client",
+    "flashrank",
+
+    # LangChain / LangGraph
+    "langchain",
+    "langgraph",
+    "langchain-text-splitters",
+    "langchain-groq",
+    "langchain-google-vertexai",
+    "langchain-community",
+    "langchain-openai",
+
+    # Document Parsing
+    "unstructured",
+    "python-pptx",
+    "python-docx",
+    "pypdf",
+    "beautifulsoup4",
+    "pdfplumber",
+
+    # Fix: newer numba/llvmlite for Python 3.11 compatibility
+    "numba>=0.57.1",
+    "llvmlite>=0.40.0",
+
+    # Observability
+    "langsmith",
+    "logfire[fastapi,requests]",
+    "loguru",
+
+    # Guardrails
+    "nemoguardrails",
+    "langchain-nvidia-ai-endpoints",
+
+    # Gateway
+    "portkey-ai",
+
+    # Evaluation
+    "ragas",
+    "deepeval",
+    "langfuse",
+
+    # Persistence & Cache
+    "redis",
+    "psycopg2-binary",
+    "asyncpg",
+
+    # Utils
+    "numpy",
+    "pytz",
+    "nest-asyncio",
+    "streamlit",
+]
+[project.optional-dependencies]
+dev = ["pytest", "pytest-asyncio", "httpx", "ruff"]
