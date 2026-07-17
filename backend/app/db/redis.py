@@ -22,8 +22,10 @@ class RedisManager:
             resp = await self.client.post("/", content=json.dumps(["GET", key]))
             if resp.status_code != 200:
                 return None
-            text = resp.text.strip()
-            return text if text else None
+            parsed = resp.json()
+            if isinstance(parsed, dict) and "result" in parsed:
+                return parsed["result"]
+            return resp.text.strip() or None
         except Exception:
             return None
 

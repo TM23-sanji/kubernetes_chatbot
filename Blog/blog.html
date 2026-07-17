@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>building a kubernetes rag chatbot with langgraph and portkey</title>
+
+    <link rel="icon" type="image/jpeg" href="good_pfp.jpg" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+
+    <style>
+      :root {
+        --bg: #000000;
+        --text: #fff;
+        --text-main: #ff6b6b;
+        --text-light: #c8c8c8;
+        --highlight-bg: #2a2a2a;
+        --highlight-border: #3a3a3a;
+      }
+
+      @font-face {
+        font-family: "custom_mono";
+        src: url("https://fonts.gstatic.com/s/robotomono/v22/L0x5DF4xlVMF-BfR8bXMIjhGq3-cXbKDO1w.woff2") format("woff2");
+        font-weight: 300;
+        font-style: normal;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        background-color: var(--bg);
+        color: var(--text);
+        font-family: "custom_mono", "SF Mono", "Consolas", "Menlo", monospace;
+        font-size: 16px;
+        line-height: 1.7;
+        font-weight: 300;
+        margin: 0;
+        padding: 3rem;
+      }
+
+      a {
+        color: var(--text);
+        text-decoration: underline;
+        text-decoration-thickness: 1px;
+        transition: color 0.2s ease-in-out;
+      }
+
+      a:hover {
+        color: var(--text-main);
+      }
+
+      .container {
+        max-width: 750px;
+        margin: 0 auto;
+      }
+
+      header {
+        margin-bottom: 4rem;
+      }
+
+      header h1 {
+        font-weight: bold;
+        font-size: 1.5em;
+        color: #ff6b6b;
+        line-height: 1.4;
+      }
+
+      header .meta {
+        color: var(--text-light);
+        font-size: 0.9em;
+        margin-top: 0.5rem;
+      }
+
+      article {
+        margin-top: 2rem;
+      }
+
+      article section {
+        margin-bottom: 3rem;
+      }
+
+      article h2, article h3 {
+        font-weight: bold;
+        font-size: 1em;
+        color: #ff6b6b;
+        margin-bottom: 1.5rem;
+      }
+
+      article p {
+        color: var(--text-light);
+        margin-bottom: 1rem;
+      }
+
+      article pre {
+        background: var(--highlight-bg);
+        border: 1px solid var(--highlight-border);
+        border-radius: 4px;
+        padding: 1rem;
+        overflow-x: auto;
+        font-size: 0.85em;
+        line-height: 1.5;
+        color: var(--text-light);
+        margin-bottom: 1rem;
+      }
+
+      article code {
+        color: #ffd93d;
+      }
+
+      .katex {
+        color: var(--text-light);
+      }
+
+      .katex-display {
+        color: var(--text-light);
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding: 0.5rem 0;
+      }
+
+      @media (max-width: 768px) {
+        body {
+          padding: 1.5rem;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="container">
+      <header>
+        <h1>building a kubernetes rag chatbot with langgraph and portkey</h1>
+        <p class="meta">July 2026 &bull; 6 min read</p>
+      </header>
+
+      <article>
+        <section>
+          <h2>what we&rsquo;re building</h2>
+          <p>
+            A Kubernetes assistant powered by Retrieval-Augmented Generation. You ask questions about pods,
+            deployments, autoscaling, or any K8s topic in plain English &mdash; the system retrieves relevant
+            documentation from a vector database, reranks the results, and generates a grounded answer using
+            a large language model. Every step is transparent: you see the thinking trace, the source chunks,
+            and the confidence scores.
+          </p>
+          <p>
+            The stack is designed for production from day one. A LangGraph agent orchestrates a six-node
+            pipeline. Portkey sits between the agent and upstream LLMs (Groq primary, OpenAI fallback) with
+            observability, caching, and failover. Gemini <code>gemini-embedding-001</code> produces 3072-dimensional
+            embeddings stored in Qdrant Cloud with COSINE distance. FlashRank cross-encoders rerank the
+            top 10 results down to the 5 most relevant chunks.
+          </p>
+          <p>
+            The frontend is a Next.js App Router application with a sidebar for conversation management,
+            expandable thinking traces, and source citation cards. The backend is FastAPI with asyncpg
+            connecting to NeonDB for persistence and Upstash Redis for response caching.
+          </p>
+        </section>
+
+        <section>
+          <h2>the architecture</h2>
+          <p>
+            The full architecture is documented in the diagram below. Each component runs as a managed
+            service or is containerized for ECS Fargate deployment.
+          </p>
+          <p>
+            <img src="image.png" alt="architecture diagram showing the full system stack from frontend to vector database" style="max-width:100%;border:1px solid #3a3a3a;border-radius:4px;margin:1rem 0;" />
+          </p>
+
+          <h3>agent pipeline</h3>
+          <p>
+            The LangGraph agent executes six nodes in sequence:
+          </p>
+          <p>
+            <strong>1. input guard</strong> &mdash; classifies whether the query is Kubernetes-related using
+            a dedicated LLM call. Non-K8s queries are rejected early.<br />
+            <strong>2. router</strong> &mdash; identifies the intent category (architecture, autoscaling,
+            job management, monitoring, cronjobs, general K8s) to optionally narrow the search scope.<br />
+            <strong>3. retrieve</strong> &mdash; embeds the query with Gemini and searches Qdrant for the
+            10 most similar document chunks.<br />
+            <strong>4. rerank</strong> &mdash; applies a FlashRank cross-encoder to rescore and select the
+            top 5 chunks, improving precision over raw vector similarity.<br />
+            <strong>5. generate</strong> &mdash; builds a prompt with the reranked context and calls the
+            LLM via Portkey to produce the final answer.<br />
+            <strong>6. output guard</strong> &mdash; verifies that the answer is grounded in the retrieved
+            sources, returning a groundedness fraction.
+          </p>
+          <p>
+            Thinking steps from each node are captured separately from the conversation messages and rendered
+            as an expandable section in the UI. This keeps the chat clean while allowing full transparency
+            into the agent&rsquo;s reasoning.
+          </p>
+
+          <h3>data flow</h3>
+          <pre>
+User Query
+  &darr;
+POST /api/chat
+  &darr;
+Check Redis cache (SHA256 query hash)
+  &darr;
+LangGraph Agent (6 nodes)
+  &darr;
+Save to NeonDB (conversation + messages)
+  &darr;
+Cache response in Redis (24h TTL)
+  &darr;
+Return to Frontend</pre>
+
+          <h3>key stack decisions</h3>
+          <p>
+            <strong>Portkey over direct API calls.</strong> Portkey provides a unified gateway with
+            configurable fallback routing, retry logic, and observability. The primary route is Groq
+            (<code>llama-3.3-70b-versatile</code>) and the fallback is OpenAI. This means if Groq is
+            rate-limited or down, requests automatically route to OpenAI without code changes.
+          </p>
+          <p>
+            <strong>Gemini embeddings.</strong> We use Google&rsquo;s <code>gemini-embedding-001</code>
+            model which produces 3072-dimensional vectors with a free-tier rate limit of 100 req/min.
+            Batching is set to 10 with exponential backoff retry (30s initial, +5s per attempt, max 5).
+          </p>
+          <p>
+            <strong>Qdrant Cloud.</strong> Chosen for its managed vector database with COSINE distance
+            support and a straightforward gRPC/REST API. Collection is configured with 3072 dimensions.
+            Upserts use 120s timeout and 50-point batches.
+          </p>
+          <p>
+            <strong>FlashRank over Cohere/LLM reranking.</strong> The <code>ms-marco-MiniLM-L-12-v2</code>
+            cross-encoder runs locally with no API costs or latency. It reranks 10 chunks to 5 in
+            under 100ms on CPU.
+          </p>
+          <p>
+            <strong>NeonDB (serverless PostgreSQL).</strong> We use asyncpg for connection pooling and
+            SQLAlchemy async for ORM. Neon&rsquo;s URL includes <code>sslmode</code> and
+            <code>channel_binding</code> parameters which are stripped for asyncpg compatibility.
+          </p>
+          <p>
+            <strong>Upstash Redis for caching.</strong> Response caching uses SHA256 query hashes with
+            24-hour TTL. On cache hit, the entire agent pipeline is skipped &mdash; zero LLM calls.
+            The REST API is accessed via HTTPS (port 443) to avoid firewall issues with the Redis
+            protocol port (6379).
+          </p>
+        </section>
+
+        <section>
+          <h2>future steps</h2>
+          <p>
+            The system works end-to-end today, but there&rsquo;s a long roadmap ahead:
+          </p>
+          <p>
+            <strong>evaluation pipeline.</strong> Integrate RAGAS and DeepEval to score retrieval precision,
+            answer faithfulness, and answer relevancy automatically. Store results in the
+            <code>EvalRun</code> table with prompt version tracking.
+          </p>
+          <p>
+            <strong>prompt versioning.</strong> Prompts are already loaded from YAML files with a
+            <code>version</code> field. The eval pipeline should log the prompt version used for each
+            generation so we can A/B test prompt changes.
+          </p>
+          <p>
+            <strong>streaming.</strong> Currently the entire agent graph runs synchronously before
+            returning. Streaming the generation token-by-token would dramatically improve perceived
+            latency.
+          </p>
+          <p>
+            <strong>multi-modal support.</strong> Users should be able to upload architecture diagrams
+            or YAML manifests and have the system analyze them visually or structurally.
+          </p>
+          <p>
+            <strong>semantic caching.</strong> The current cache matches exact queries. A semantic cache
+            using embedding similarity would allow &ldquo;how do I scale pods&rdquo; and &ldquo;how to
+            autoscale deployments&rdquo; to share a cache entry.
+          </p>
+          <p>
+            <strong>aws deployment.</strong> The Dockerfile and docker-compose.yml exist. Next step is
+            pushing to ECR and deploying on ECS Fargate with CloudFront in front of the Next.js app.
+          </p>
+        </section>
+
+        <section>
+          <h2>links</h2>
+          <p>
+            <a href="https://github.com/anomalyco/opencode">opencode &mdash; the CLI tool used to build this</a><br />
+            <a href="https://qdrant.tech">qdrant cloud &mdash; vector database</a><br />
+            <a href="https://portkey.ai">portkey &mdash; llm gateway</a><br />
+            <a href="https://console.upstash.com">upstash redis</a><br />
+            <a href="https://neon.tech">neondb &mdash; serverless postgres</a><br />
+            <a href="https://cloud.google.com/vertex-ai">gemini embeddings</a><br />
+            <a href="https://groq.com">groq &mdash; ultra-fast llm inference</a>
+          </p>
+          <p>Till then, keep experimenting :)</p>
+        </section>
+      </article>
+    </div>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        renderMathInElement(document.body, {
+          delimiters: [
+            { left: "$$", right: "$$", display: true },
+            { left: "$", right: "$", display: false },
+          ],
+        });
+      });
+    </script>
+  </body>
+</html>

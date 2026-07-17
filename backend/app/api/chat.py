@@ -1,4 +1,8 @@
+import hashlib
+import json
 import uuid
+
+import logfire
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -6,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.graph import agent_graph
 from app.db.postgres import db_manager
 from app.db import repository as repo
-from app.config import settings
+from app.db.redis import redis_manager
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -42,24 +46,51 @@ async def chat(req: ChatRequest, session: AsyncSession = Depends(get_session)):
 
     await repo.add_message(session, conv_id, "user", req.message)
 
-    initial_state = {
-        "user_query": req.message,
-        "messages": [],
-        "intent": "",
-        "retrieved_chunks": [],
-        "reranked_chunks": [],
-        "generated_answer": "",
-        "sources": [],
-        "thinking_steps": [],
-        "guardrail_input_passed": True,
-        "guardrail_output_passed": True,
-    }
+    query_hash = hashlib.sha256(req.message.encode()).hexdigest()
+    cache_key = f"response:{query_hash}"
+    try:
+        cached = await redis_manager.get(cache_key)
+        if cached:
+            cached_data = json.loads(cached)
+            reply = cached_data["reply"]
+            sources = cached_data["sources"]
+            thinking = cached_data["thinking_steps"] + [
+                {"stage": "cache", "detail": "full response cache hit — skipped all LLM calls", "duration_ms": 0}
+            ]
+            logfire.info("response cache hit", query_hash=query_hash, conv_id=conv_id)
+        else:
+            raise ValueError("miss")
+    except Exception:
+        cached = None
 
-    result = await agent_graph.ainvoke(initial_state)
+    if not cached:
+        initial_state = {
+            "user_query": req.message,
+            "messages": [],
+            "intent": "",
+            "retrieved_chunks": [],
+            "reranked_chunks": [],
+            "generated_answer": "",
+            "sources": [],
+            "thinking_steps": [],
+            "guardrail_input_passed": True,
+            "guardrail_output_passed": True,
+        }
 
-    reply = result.get("generated_answer", "")
-    sources = result.get("sources", [])
-    thinking = result.get("thinking_steps", [])
+        result = await agent_graph.ainvoke(initial_state)
+
+        reply = result.get("generated_answer", "")
+        sources = result.get("sources", [])
+        thinking = result.get("thinking_steps", [])
+
+        try:
+            await redis_manager.set(
+                cache_key,
+                json.dumps({"reply": reply, "sources": sources, "thinking_steps": thinking}, default=str),
+                ttl=86400,
+            )
+        except Exception:
+            pass
 
     await repo.add_message(session, conv_id, "assistant", reply, sources=sources, thinking_steps=thinking)
 
