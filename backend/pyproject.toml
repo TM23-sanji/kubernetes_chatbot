@@ -10,16 +10,13 @@ dependencies = [
     "pydantic-settings",
     "pydantic>=2.0.0",
     "requests",
-
     # LLM & Embeddings
     "google-generativeai",
     "langchain-google-genai",
     "sentence-transformers",
-
     # Vector DB & Retrieval
     "qdrant-client",
     "flashrank",
-
     # LangChain / LangGraph
     "langchain",
     "langgraph",
@@ -28,7 +25,6 @@ dependencies = [
     "langchain-google-vertexai",
     "langchain-community",
     "langchain-openai",
-
     # Document Parsing
     "unstructured",
     "python-pptx",
@@ -36,33 +32,26 @@ dependencies = [
     "pypdf",
     "beautifulsoup4",
     "pdfplumber",
-
     # Fix: newer numba/llvmlite for Python 3.11 compatibility
     "numba>=0.57.1",
     "llvmlite>=0.40.0",
-
     # Observability
     "langsmith",
-    "logfire[fastapi,requests]",
+    "logfire[asyncpg,fastapi,httpx,requests]",
     "loguru",
-
     # Guardrails
     "nemoguardrails",
     "langchain-nvidia-ai-endpoints",
-
     # Gateway
     "portkey-ai",
-
     # Evaluation
     "ragas",
     "deepeval",
     "langfuse",
-
     # Persistence & Cache
     "redis",
     "psycopg2-binary",
     "asyncpg",
-
     # Utils
     "numpy",
     "pytz",

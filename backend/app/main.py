@@ -1,4 +1,7 @@
+import os
 from contextlib import asynccontextmanager
+
+import logfire
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -17,6 +20,21 @@ from app.config import settings
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if settings.logfire_token:
+        logfire.configure(
+            token=settings.logfire_token,
+            service_name="kubernetes-rag-chatbot",
+        )
+        logfire.instrument_fastapi(app)
+        logfire.instrument_openai()
+        logfire.instrument_httpx()
+        logfire.instrument_asyncpg()
+    if settings.langsmith_api_key:
+        os.environ["LANGCHAIN_TRACING_V2"] = "true"
+        os.environ["LANGCHAIN_API_KEY"] = settings.langsmith_api_key
+        os.environ["LANGCHAIN_ENDPOINT"] = settings.langsmith_endpoint
+        os.environ["LANGCHAIN_PROJECT"] = settings.langsmith_project
+
     await db_manager.initialize()
     await redis_manager.initialize()
     await qdrant_manager.initialize()

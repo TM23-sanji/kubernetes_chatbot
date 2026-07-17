@@ -7,6 +7,7 @@ import {
   Search,
   History,
   Star,
+  Trash2,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -65,6 +66,26 @@ export default function Sidebar({
         onNewConversation();
         fetchConversations();
       }
+    } catch {
+      // silently fail
+    }
+  };
+
+  const handleToggleStar = async (e: React.MouseEvent, convId: string) => {
+    e.stopPropagation();
+    try {
+      await fetch(`${API_BASE}/api/conversations/${convId}/star`, { method: "POST" });
+      fetchConversations();
+    } catch {
+      // silently fail
+    }
+  };
+
+  const handleDelete = async (e: React.MouseEvent, convId: string) => {
+    e.stopPropagation();
+    try {
+      await fetch(`${API_BASE}/api/conversations/${convId}`, { method: "DELETE" });
+      fetchConversations();
     } catch {
       // silently fail
     }
@@ -142,17 +163,31 @@ export default function Sidebar({
 
           <nav className="flex-1 overflow-y-auto px-2 pb-2">
             {conversations.map((conv) => (
-              <button
+              <div
                 key={conv.id}
                 onClick={() => onSelectConversation(conv.id)}
-                className={`w-full text-left px-2 py-1.5 rounded-md text-sm transition-colors truncate ${
+                className={`group flex items-center gap-0.5 w-full px-2 py-1 rounded-md text-sm transition-colors cursor-pointer ${
                   conv.id === activeConversationId
                     ? "bg-sidebar-active text-foreground font-medium"
                     : "text-muted hover:bg-sidebar-hover hover:text-foreground"
                 }`}
               >
-                {conv.title}
-              </button>
+                <span className="flex-1 truncate">{conv.title}</span>
+                <button
+                  onClick={(e) => handleToggleStar(e, conv.id)}
+                  className="shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 hover:text-yellow-400 transition-opacity"
+                  title={conv.starred ? "Unstar" : "Star"}
+                >
+                  <Star size={12} fill={conv.starred ? "currentColor" : "none"} />
+                </button>
+                <button
+                  onClick={(e) => handleDelete(e, conv.id)}
+                  className="shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 hover:text-red-400 transition-opacity"
+                  title="Delete"
+                >
+                  <Trash2 size={12} />
+                </button>
+              </div>
             ))}
           </nav>
         </div>
