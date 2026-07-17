@@ -90,14 +90,14 @@ async def generate_node(state: dict) -> dict:
         parts = []
         seen = set()
         for i, c in enumerate(chunks):
-            text = c.get("text") or c.get("payload", {}).get("text", "")
-            source = c.get("payload", {}).get("source", "unknown")
-            score = c.get("score", 0)
+            text = c.get("text") or ""
+            source = c.get("source", "unknown")
+            score = float(c.get("score", 0))
             parts.append(f"[{i+1}] (from: {source}, relevance: {round(score*100, 1)}%)\n{text}")
-            key = f"{source}|{c.get('payload', {}).get('chunk_index', 0)}"
+            key = f"{source}|{c.get('chunk_index', 0)}"
             if key not in seen:
                 seen.add(key)
-                sources.append({"file": source, "chunk": c.get("payload", {}).get("chunk_index", 0), "score": score})
+                sources.append({"file": source, "chunk": c.get("chunk_index", 0), "score": score})
         context = "\n\n".join(parts)
 
     prompt = load_prompt("generation")

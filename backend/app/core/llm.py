@@ -16,7 +16,7 @@ class LLMManager:
 
     async def generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 1024) -> str:
         response = await self.client.chat.completions.create(
-            model="@kubernetes-chatbot/llama3-70b-8192",
+            model="@kubernetes-chatbot/llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},

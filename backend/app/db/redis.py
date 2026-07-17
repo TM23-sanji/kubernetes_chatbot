@@ -8,11 +8,14 @@ class RedisManager:
         self.client = None
 
     async def initialize(self):
-        self.client = redis_async.Redis(
-            url=settings.upstash_redis_rest_url,
-            token=settings.upstash_redis_rest_token,
+        host = settings.upstash_redis_rest_url.replace("https://", "").rstrip("/")
+        redis_url = f"rediss://default:{settings.upstash_redis_rest_token}@{host}:6379"
+        self.client = redis_async.Redis.from_url(
+            url=redis_url,
             decode_responses=True,
+            ssl=True,
         )
+
 
     async def get(self, key: str) -> str | None:
         return await self.client.get(key)
