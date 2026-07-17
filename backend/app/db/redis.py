@@ -1,4 +1,6 @@
-import redis.asyncio as redis_async
+import json
+
+import httpx
 
 from app.config import settings
 
@@ -8,24 +10,34 @@ class RedisManager:
         self.client = None
 
     async def initialize(self):
-        host = settings.upstash_redis_rest_url.replace("https://", "").rstrip("/")
-        redis_url = f"rediss://default:{settings.upstash_redis_rest_token}@{host}:6379"
-        self.client = redis_async.Redis.from_url(
-            url=redis_url,
-            decode_responses=True,
-            ssl=True,
+        self.client = httpx.AsyncClient(
+            base_url=settings.upstash_redis_rest_url.rstrip("/"),
+            headers={
+                "Authorization": f"Bearer {settings.upstash_redis_rest_token}",
+            },
         )
 
-
     async def get(self, key: str) -> str | None:
-        return await self.client.get(key)
+        try:
+            resp = await self.client.post("/", content=json.dumps(["GET", key]))
+            if resp.status_code != 200:
+                return None
+            text = resp.text.strip()
+            return text if text else None
+        except Exception:
+            return None
 
     async def set(self, key: str, value: str, ttl: int = 3600):
-        await self.client.set(key, value, ex=ttl)
+        try:
+            await self.client.post(
+                "/", content=json.dumps(["SET", key, value, "EX", str(ttl)])
+            )
+        except Exception:
+            pass
 
     async def close(self):
         if self.client:
-            await self.client.close()
+            await self.client.aclose()
 
 
 redis_manager = RedisManager()

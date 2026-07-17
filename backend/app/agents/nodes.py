@@ -50,21 +50,36 @@ async def retrieve_node(state: dict) -> dict:
     query_hash = hashlib.sha256(query.encode()).hexdigest()
     cache_key = f"retrieval:{query_hash}"
 
-    cached = await redis_manager.get(cache_key)
-    if cached:
-        results = json.loads(cached)
-        cache_hit = True
-    else:
+    try:
+        cached = await redis_manager.get(cache_key)
+        if cached:
+            parsed = json.loads(cached)
+            if isinstance(parsed, dict) and "result" in parsed:
+                parsed = json.loads(parsed["result"])
+            if isinstance(parsed, str):
+                parsed = json.loads(parsed)
+            if not isinstance(parsed, list):
+                raise ValueError("unexpected cache format")
+            results = parsed
+            cache_hit = True
+        else:
+            raise ValueError("cache miss")
+    except Exception:
         vector = await embedding_manager.embed(query)
         results = await qdrant_manager.search(vector, top_k=10)
         flat = [{**r.payload, "score": r.score, "id": r.id} for r in results]
-        await redis_manager.set(cache_key, json.dumps(flat, default=str), ttl=3600)
+        try:
+            await redis_manager.set(cache_key, json.dumps(flat, default=str), ttl=3600)
+        except Exception:
+            pass
         cache_hit = False
 
     duration = (time.perf_counter() - start) * 1000
     sources_detail = ", ".join(
         sorted(set(
-            r.payload.get("source", "unknown").rsplit("/", 1)[-1]
+            r.get("source", "unknown").rsplit("/", 1)[-1]
+            if isinstance(r, dict)
+            else r.payload.get("source", "unknown").rsplit("/", 1)[-1]
             for r in results
         ))
     ) if results else "no matches"
