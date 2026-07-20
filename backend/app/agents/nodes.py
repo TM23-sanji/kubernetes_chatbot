@@ -141,7 +141,14 @@ async def generate_node(state: dict) -> dict:
 
     prompt = load_prompt("generation")
     system = prompt["system_prompt"]
-    user_prompt = f"Context:\n{context}\n\nQuestion: {query}" if context else f"Question: {query}"
+    parts = []
+    if context:
+        parts.append(f"Context:\n{context}")
+    historical = state.get("conversation_history", "")
+    if historical:
+        parts.append(f"Conversation history:\n{historical}")
+    parts.append(f"Current Question: {query}")
+    user_prompt = "\n\n".join(parts)
 
     t0 = time.perf_counter()
     response = await llm_manager.chat_model.ainvoke([

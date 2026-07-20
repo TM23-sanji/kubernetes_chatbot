@@ -17,6 +17,20 @@ from app.db.redis import redis_manager
 def sse_event(event_type: str, data: object) -> str:
     return f"data: {json.dumps({event_type: data}, default=str)}\n\n"
 
+
+async def _load_history(session: AsyncSession, conv_id: str) -> str:
+    msgs = await repo.get_messages(session, conv_id)
+    prev = msgs[:-1]
+    recent = prev[-2:]
+    if not recent:
+        return ""
+    lines = []
+    for m in recent:
+        role = "User" if m.role == "user" else "Assistant"
+        lines.append(f"{role}: {m.content}")
+    return "\n".join(lines)
+
+
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 
@@ -69,6 +83,7 @@ async def chat(req: ChatRequest, session: AsyncSession = Depends(get_session)):
         cached = None
 
     if not cached:
+        history = await _load_history(session, conv_id)
         initial_state = {
             "user_query": req.message,
             "messages": [],
@@ -80,6 +95,7 @@ async def chat(req: ChatRequest, session: AsyncSession = Depends(get_session)):
             "thinking_steps": [],
             "guardrail_input_passed": True,
             "guardrail_output_passed": True,
+            "conversation_history": history,
         }
 
         result = await agent_graph.ainvoke(initial_state)
@@ -140,6 +156,7 @@ async def chat_stream(req: ChatRequest, session: AsyncSession = Depends(get_sess
     except Exception:
         pass
 
+    history = await _load_history(session, conv_id)
     initial_state: dict = {
         "user_query": req.message,
         "messages": [],
@@ -151,6 +168,7 @@ async def chat_stream(req: ChatRequest, session: AsyncSession = Depends(get_sess
         "thinking_steps": [],
         "guardrail_input_passed": True,
         "guardrail_output_passed": True,
+        "conversation_history": history,
     }
 
     async def event_generator():
@@ -164,12 +182,13 @@ async def chat_stream(req: ChatRequest, session: AsyncSession = Depends(get_sess
                 "thinking_steps": steps,
                 "conversation_id": conv_id,
             })
-            await repo.add_message(
-                session, conv_id, "assistant",
-                cached_data["reply"],
-                sources=cached_data["sources"],
-                thinking_steps=steps,
-            )
+            async with await db_manager.get_session() as inner_session:
+                await repo.add_message(
+                    inner_session, conv_id, "assistant",
+                    cached_data["reply"],
+                    sources=cached_data["sources"],
+                    thinking_steps=steps,
+                )
             return
 
         final_state: dict = {}
@@ -202,26 +221,27 @@ async def chat_stream(req: ChatRequest, session: AsyncSession = Depends(get_sess
             "conversation_id": conv_id,
         })
 
-        if final_state.get("guardrail_input_passed", True):
-            try:
-                await redis_manager.set(
-                    cache_key,
-                    json.dumps({
-                        "reply": final_state.get("generated_answer", ""),
-                        "sources": final_state.get("sources", []),
-                        "thinking_steps": final_state.get("thinking_steps", []),
-                    }, default=str),
-                    ttl=86400,
-                )
-            except Exception:
-                pass
+        async with await db_manager.get_session() as inner_session:
+            if final_state.get("guardrail_input_passed", True):
+                try:
+                    await redis_manager.set(
+                        cache_key,
+                        json.dumps({
+                            "reply": final_state.get("generated_answer", ""),
+                            "sources": final_state.get("sources", []),
+                            "thinking_steps": final_state.get("thinking_steps", []),
+                        }, default=str),
+                        ttl=86400,
+                    )
+                except Exception:
+                    pass
 
-        await repo.add_message(
-            session, conv_id, "assistant",
-            final_state.get("generated_answer", ""),
-            sources=final_state.get("sources", []),
-            thinking_steps=final_state.get("thinking_steps", []),
-        )
+            await repo.add_message(
+                inner_session, conv_id, "assistant",
+                final_state.get("generated_answer", ""),
+                sources=final_state.get("sources", []),
+                thinking_steps=final_state.get("thinking_steps", []),
+            )
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
