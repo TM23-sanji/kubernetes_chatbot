@@ -6,7 +6,7 @@ class Reranker:
 
     async def initialize(self):
         from flashrank import Ranker, RerankRequest
-        self.model = Ranker(model_name="ms-marco-MiniLM-L-12-v2")
+        self.model = Ranker(model_name="ms-marco-TinyBERT-L-2-v2")
 
     async def rerank(self, query: str, passages: list[dict], top_k: int = 3) -> list[dict]:
         # Normalize ScoredPoint objects (from Qdrant) to plain dicts

@@ -19,3 +19,4 @@ class AgentState(TypedDict):
     thinking_steps: Annotated[list, operator.add]
     guardrail_input_passed: bool
     guardrail_output_passed: bool
+    conversation_history: str

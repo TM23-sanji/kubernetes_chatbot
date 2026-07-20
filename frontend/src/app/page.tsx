@@ -61,41 +61,88 @@ export default function Home() {
 
   const handleSend = async (message: string) => {
     setLoading(true);
-    const tempId = `temp-${Date.now()}`;
-    setMessages((prev) => [...prev, { id: tempId, role: "user", content: message }]);
+    const userTs = Date.now();
+    const tempUserId = `user-${userTs}`;
+    const assistantId = `stream-${userTs}`;
+    setMessages((prev) => [
+      ...prev,
+      { id: tempUserId, role: "user", content: message },
+      { id: assistantId, role: "assistant", content: "", thinking_steps: [] },
+    ]);
 
     try {
-      const res = await fetch(`${API_BASE}/api/chat`, {
+      const res = await fetch(`${API_BASE}/api/chat/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message,
-          conversation_id: activeConversationId,
-        }),
+        body: JSON.stringify({ message, conversation_id: activeConversationId }),
       });
 
       if (!res.ok) throw new Error("Chat request failed");
 
-      const data = await res.json();
-      setActiveConversationId(data.conversation_id);
-      setMessages((prev) => [
-        ...prev.filter((m) => m.id !== tempId),
-        {
-          id: data.conversation_id + "-user",
-          role: "user",
-          content: message,
-        },
-        {
-          id: data.conversation_id + "-assistant",
-          role: "assistant",
-          content: data.reply,
-          sources: data.sources,
-          thinking_steps: data.thinking_steps,
-        },
-      ]);
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n\n");
+        buffer = lines.pop() || "";
+
+        for (const block of lines) {
+          const line = block.trim();
+          if (!line || !line.startsWith("data: ")) continue;
+          try {
+            const parsed = JSON.parse(line.slice(6));
+
+            if (parsed.thinking) {
+              const step = parsed.thinking;
+              setMessages((prev) => {
+                const updated = [...prev];
+                const idx = updated.findIndex((m) => m.id === assistantId);
+                if (idx === -1) return prev;
+                updated[idx] = {
+                  ...updated[idx],
+                  thinking_steps: [...(updated[idx].thinking_steps || []), step],
+                };
+                return updated;
+              });
+            } else if (parsed.token) {
+              const text = parsed.token.text;
+              setMessages((prev) => {
+                const updated = [...prev];
+                const idx = updated.findIndex((m) => m.id === assistantId);
+                if (idx === -1) return prev;
+                updated[idx] = { ...updated[idx], content: updated[idx].content + text };
+                return updated;
+              });
+            } else if (parsed.done) {
+              const d = parsed.done;
+              setActiveConversationId(d.conversation_id);
+              setMessages((prev) => {
+                const updated = [...prev];
+                const idx = updated.findIndex((m) => m.id === assistantId);
+                if (idx === -1) return prev;
+                updated[idx] = {
+                  id: d.conversation_id + "-assistant",
+                  role: "assistant",
+                  content: d.reply,
+                  sources: d.sources,
+                  thinking_steps: d.thinking_steps,
+                };
+                return updated;
+              });
+            }
+          } catch {
+            // skip malformed JSON
+          }
+        }
+      }
     } catch {
       setMessages((prev) => [
-        ...prev.filter((m) => m.id !== tempId),
+        ...prev.filter((m) => m.id !== assistantId && m.id !== tempUserId),
         { id: "err", role: "assistant", content: "Sorry, something went wrong. Please try again." },
       ]);
     } finally {
@@ -183,13 +230,7 @@ export default function Home() {
                   thinking_steps={msg.thinking_steps}
                 />
               ))}
-              {loading && (
-                <div className="flex justify-start mb-4">
-                  <div className="max-w-[80%] rounded-2xl px-4 py-3 bg-sidebar border border-border text-foreground">
-                    <p className="text-sm text-muted animate-pulse">Thinking...</p>
-                  </div>
-                </div>
-              )}
+
             </div>
           </div>
         )}
