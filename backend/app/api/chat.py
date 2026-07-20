@@ -129,6 +129,17 @@ async def chat_stream(req: ChatRequest, session: AsyncSession = Depends(get_sess
             raise HTTPException(status_code=404, detail="Conversation not found")
     await repo.add_message(session, conv_id, "user", req.message)
 
+    query_hash = hashlib.sha256(req.message.encode()).hexdigest()
+    cache_key = f"response:{query_hash}"
+    cached_data = None
+    try:
+        raw = await redis_manager.get(cache_key)
+        if raw:
+            cached_data = json.loads(raw)
+            logfire.info("response cache hit", query_hash=query_hash, conv_id=conv_id)
+    except Exception:
+        pass
+
     initial_state: dict = {
         "user_query": req.message,
         "messages": [],
@@ -143,6 +154,24 @@ async def chat_stream(req: ChatRequest, session: AsyncSession = Depends(get_sess
     }
 
     async def event_generator():
+        if cached_data:
+            steps = cached_data["thinking_steps"] + [
+                {"stage": "cache", "detail": "full response cache hit — skipped all LLM calls", "duration_ms": 0}
+            ]
+            yield sse_event("done", {
+                "reply": cached_data["reply"],
+                "sources": cached_data["sources"],
+                "thinking_steps": steps,
+                "conversation_id": conv_id,
+            })
+            await repo.add_message(
+                session, conv_id, "assistant",
+                cached_data["reply"],
+                sources=cached_data["sources"],
+                thinking_steps=steps,
+            )
+            return
+
         final_state: dict = {}
         try:
             async for event in agent_graph.astream_events(initial_state, version="v2"):
@@ -175,8 +204,6 @@ async def chat_stream(req: ChatRequest, session: AsyncSession = Depends(get_sess
 
         if final_state.get("guardrail_input_passed", True):
             try:
-                query_hash = hashlib.sha256(req.message.encode()).hexdigest()
-                cache_key = f"response:{query_hash}"
                 await redis_manager.set(
                     cache_key,
                     json.dumps({
