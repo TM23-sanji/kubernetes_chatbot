@@ -1,4 +1,5 @@
 import asyncio
+import time
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import Distance, VectorParams, PointStruct
 
@@ -28,12 +29,15 @@ class QdrantManager:
             )
 
     async def search(self, vector: list[float], top_k: int = 5) -> list:
+        t0 = time.perf_counter()
         result = await asyncio.to_thread(
             self.client.query_points,
             collection_name=self.COLLECTION_NAME,
             query=vector,
             limit=top_k,
         )
+        dur = (time.perf_counter() - t0) * 1000
+        print(f"[perf] Qdrant search: {dur:.0f}ms ({len(result.points)} results)")
         return result.points
 
     async def upsert(self, points: list[dict], batch_size: int = 50):
