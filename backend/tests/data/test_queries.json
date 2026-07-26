@@ -1,0 +1,162 @@
+[
+  {
+    "id": "arch-01",
+    "question": "What are the main components of Kubernetes architecture?",
+    "expected_intent": "architecture",
+    "expected_sources": ["architecture.pptx"],
+    "expected_keywords": ["master", "node", "control plane", "etcd", "API server"],
+    "ground_truth": "Kubernetes architecture consists of master components (API server, etcd, scheduler, controller manager) and node components (kubelet, kube-proxy, container runtime)."
+  },
+  {
+    "id": "arch-02",
+    "question": "How does the Kubernetes scheduler work?",
+    "expected_intent": "architecture",
+    "expected_sources": ["architecture.pptx"],
+    "expected_keywords": ["scheduler", "pods", "nodes", "resources"],
+    "ground_truth": ""
+  },
+  {
+    "id": "arch-03",
+    "question": "What is etcd in Kubernetes?",
+    "expected_intent": "architecture",
+    "expected_sources": ["architecture.pptx"],
+    "expected_keywords": ["etcd", "key-value", "store", "configuration"],
+    "ground_truth": ""
+  },
+  {
+    "id": "cron-01",
+    "question": "How do I create a CronJob in Kubernetes?",
+    "expected_intent": "general_k8s",
+    "expected_sources": ["cronjobs.docx"],
+    "expected_keywords": ["CronJob", "schedule", "job", "cron"],
+    "ground_truth": ""
+  },
+  {
+    "id": "cron-02",
+    "question": "What is the difference between a Job and a CronJob in Kubernetes?",
+    "expected_intent": "general_k8s",
+    "expected_sources": ["cronjobs.docx"],
+    "expected_keywords": ["Job", "CronJob", "schedule", "run to completion"],
+    "ground_truth": ""
+  },
+  {
+    "id": "cron-03",
+    "question": "How do I schedule a batch job to run every day at midnight in Kubernetes?",
+    "expected_intent": "cronjobs",
+    "expected_sources": ["cronjobs.docx"],
+    "expected_keywords": ["CronJob", "schedule", "midnight", "batch"],
+    "ground_truth": ""
+  },
+  {
+    "id": "job-01",
+    "question": "How do I run a Kubernetes Job that processes multiple parallel tasks?",
+    "expected_intent": "job_management",
+    "expected_sources": ["parallel_work_queue.txt"],
+    "expected_keywords": ["Job", "parallel", "worker", "pod"],
+    "ground_truth": ""
+  },
+  {
+    "id": "job-02",
+    "question": "How can I use Redis as a work queue for Kubernetes Jobs?",
+    "expected_intent": "job_management",
+    "expected_sources": ["parallel_work_queue.txt"],
+    "expected_keywords": ["Redis", "work queue", "queue", "job"],
+    "ground_truth": ""
+  },
+  {
+    "id": "job-03",
+    "question": "How do I create multiple worker pods for parallel processing in Kubernetes?",
+    "expected_intent": "job_management",
+    "expected_sources": ["parallel_work_queue.txt"],
+    "expected_keywords": ["worker", "parallel", "pod", "Job"],
+    "ground_truth": ""
+  },
+  {
+    "id": "hpa-01",
+    "question": "How does Horizontal Pod Autoscaling work in Kubernetes?",
+    "expected_intent": "autoscaling",
+    "expected_sources": ["pods_autoscale.html"],
+    "expected_keywords": ["HPA", "HorizontalPodAutoscaler", "scale", "replicas", "metrics"],
+    "ground_truth": ""
+  },
+  {
+    "id": "hpa-02",
+    "question": "What metrics can HPA use to scale pods?",
+    "expected_intent": "autoscaling",
+    "expected_sources": ["pods_autoscale.html"],
+    "expected_keywords": ["CPU", "memory", "custom metrics", "HPA"],
+    "ground_truth": ""
+  },
+  {
+    "id": "hpa-03",
+    "question": "How do I configure a HorizontalPodAutoscaler YAML?",
+    "expected_intent": "autoscaling",
+    "expected_sources": ["pods_autoscale.html"],
+    "expected_keywords": ["HorizontalPodAutoscaler", "YAML", "apiVersion", "spec"],
+    "ground_truth": ""
+  },
+  {
+    "id": "hpa-04",
+    "question": "What is the difference between HPA and VPA in Kubernetes?",
+    "expected_intent": "autoscaling",
+    "expected_sources": ["pods_autoscale.html"],
+    "expected_keywords": ["HPA", "VPA", "horizontal", "vertical", "autoscaling"],
+    "ground_truth": ""
+  },
+  {
+    "id": "mon-01",
+    "question": "How do I monitor the status of a Kubernetes Job?",
+    "expected_intent": "monitoring",
+    "expected_sources": ["monitor_job.docx"],
+    "expected_keywords": ["monitor", "job", "status", "logs", "kubectl"],
+    "ground_truth": ""
+  },
+  {
+    "id": "mon-02",
+    "question": "How can I view logs from a completed Kubernetes Pod?",
+    "expected_intent": "monitoring",
+    "expected_sources": ["monitor_job.docx"],
+    "expected_keywords": ["logs", "pod", "completed", "kubectl logs"],
+    "ground_truth": ""
+  },
+  {
+    "id": "mon-03",
+    "question": "What kubectl commands can I use to troubleshoot Job failures?",
+    "expected_intent": "monitoring",
+    "expected_sources": ["monitor_job.docx"],
+    "expected_keywords": ["kubectl", "describe", "logs", "job", "troubleshoot"],
+    "ground_truth": ""
+  },
+  {
+    "id": "gen-01",
+    "question": "What is a Kubernetes Pod?",
+    "expected_intent": "general_k8s",
+    "expected_sources": [],
+    "expected_keywords": ["pod", "container", "smallest", "deployable"],
+    "ground_truth": ""
+  },
+  {
+    "id": "gen-02",
+    "question": "How do I deploy an application on Kubernetes?",
+    "expected_intent": "general_k8s",
+    "expected_sources": [],
+    "expected_keywords": ["deployment", "pod", "deploy", "container"],
+    "ground_truth": ""
+  },
+  {
+    "id": "gen-03",
+    "question": "What is the purpose of a Kubernetes Service?",
+    "expected_intent": "general_k8s",
+    "expected_sources": [],
+    "expected_keywords": ["Service", "network", "expose", "load balancer"],
+    "ground_truth": ""
+  },
+  {
+    "id": "gen-04",
+    "question": "How do I use kubectl to create a deployment?",
+    "expected_intent": "general_k8s",
+    "expected_sources": [],
+    "expected_keywords": ["kubectl", "create", "deployment", "command"],
+    "ground_truth": ""
+  }
+]
