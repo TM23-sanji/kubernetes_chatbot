@@ -45,9 +45,13 @@ export default function ChatInput({ onSend, onAttach, loading }: ChatInputProps)
   };
 
   return (
-    <div className="border-t border-border bg-background">
+    <div className="border-t border-black/10 bg-background">
       <div className="max-w-3xl mx-auto px-4 py-3">
-        <div className="relative">
+        <div className="relative border border-black/20 bg-background corner-markers">
+          <span className="cm-tl" />
+          <span className="cm-tr" />
+          <span className="cm-bl" />
+          <span className="cm-br" />
           <textarea
             ref={textareaRef}
             rows={1}
@@ -56,7 +60,7 @@ export default function ChatInput({ onSend, onAttach, loading }: ChatInputProps)
             onInput={handleInput}
             onKeyDown={handleKeyDown}
             placeholder="Ask about Kubernetes..."
-            className="w-full resize-none rounded-xl border border-border bg-background px-4 py-3 pr-20 text-sm text-foreground placeholder-muted outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/20 transition-colors"
+            className="w-full resize-none bg-transparent px-4 py-3 pr-20 text-sm text-foreground placeholder-black/40 outline-none font-mono"
           />
           <div className="absolute right-2 bottom-2 flex items-center gap-1">
             <input
@@ -67,7 +71,7 @@ export default function ChatInput({ onSend, onAttach, loading }: ChatInputProps)
             />
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="p-1.5 rounded-md hover:bg-sidebar-hover text-muted transition-colors"
+              className="p-1.5 rounded hover:bg-sidebar-hover text-muted transition-colors"
               aria-label="Attach file"
             >
               <Paperclip size={16} />
@@ -75,7 +79,7 @@ export default function ChatInput({ onSend, onAttach, loading }: ChatInputProps)
             <button
               onClick={handleSend}
               disabled={!value.trim() || loading}
-              className="p-1.5 rounded-md bg-accent text-white hover:bg-accent-light disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="p-1.5 rounded bg-foreground text-background hover:opacity-80 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
               aria-label="Send message"
             >
               {loading ? <Loader2 size={16} className="animate-spin" /> : <ArrowUp size={16} />}

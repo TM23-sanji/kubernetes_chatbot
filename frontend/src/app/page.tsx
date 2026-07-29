@@ -12,6 +12,7 @@ import {
 import Sidebar from "@/components/Sidebar";
 import ChatInput from "@/components/ChatInput";
 import ChatMessage from "@/components/ChatMessage";
+import { CornerMarkers } from "@/components/CornerMarkers";
 
 interface Message {
   id: string;
@@ -187,7 +188,7 @@ export default function Home() {
         {messages.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center px-4 overflow-y-auto">
             <div className="max-w-xl w-full text-center">
-              <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center mx-auto mb-6">
+              <div className="w-10 h-10 rounded-full bg-accent/5 flex items-center justify-center mx-auto mb-6 border border-black/10">
                 <Cube size={20} className="text-accent" />
               </div>
               <h1 className="text-4xl font-semibold tracking-tight text-foreground mb-3">
@@ -196,16 +197,20 @@ export default function Home() {
               <p className="text-sm text-muted mb-8">
                 Ask anything about Kubernetes &mdash; deploy, debug, optimize, and learn
               </p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {quickActions.map((action) => (
                   <button
                     key={action.label}
                     onClick={() => handleSend(action.description)}
-                    className="flex flex-col items-center gap-1.5 px-3 py-3 rounded-lg border border-border bg-background hover:bg-sidebar-hover transition-colors group"
+                    className="relative flex flex-col items-center gap-1.5 px-3 py-3 border border-black/20 bg-background hover:bg-sidebar-hover transition-colors group corner-markers"
                   >
+                    <span className="cm-tl" />
+                    <span className="cm-tr" />
+                    <span className="cm-bl" />
+                    <span className="cm-br" />
                     <action.icon
                       size={18}
-                      className="text-muted group-hover:text-accent transition-colors"
+                      className="text-muted group-hover:text-foreground transition-colors"
                     />
                     <span className="text-xs font-medium text-foreground">
                       {action.label}

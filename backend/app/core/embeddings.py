@@ -1,7 +1,5 @@
 import asyncio
 import time
-from google import genai
-from google.genai import errors
 
 from app.config import settings
 
@@ -11,9 +9,12 @@ class EmbeddingManager:
         self.client = None
 
     async def initialize(self):
+        from google import genai
         self.client = genai.Client(api_key=settings.gemini_api_key)
 
     async def _call_with_retry(self, texts: list[str]) -> list[list[float]]:
+        from google.genai import errors
+
         for attempt in range(5):
             t0 = time.perf_counter()
             try:

@@ -10,6 +10,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { CornerMarkers } from "./CornerMarkers";
 
 interface Conversation {
   id: string;
@@ -93,11 +94,11 @@ export default function Sidebar({
 
   return (
     <aside
-      className={`flex-shrink-0 bg-sidebar border-r border-border transition-all duration-200 ease-in-out flex flex-col ${
+      className={`relative flex-shrink-0 bg-sidebar border-r border-black/10 transition-all duration-200 ease-in-out flex flex-col ${
         open ? "w-64" : "w-12"
       }`}
     >
-      <div className="flex items-center justify-between p-2 h-12 border-b border-border">
+      <div className="flex items-center justify-between p-2 h-12 border-b border-black/10">
         {open && (
           <span className="text-sm font-medium text-foreground ml-1">
             Kubernetes RAG
@@ -105,7 +106,7 @@ export default function Sidebar({
         )}
         <button
           onClick={onToggle}
-          className="p-1.5 rounded-md hover:bg-sidebar-hover text-muted transition-colors"
+          className="p-1.5 rounded hover:bg-sidebar-hover text-muted transition-colors"
           aria-label={open ? "Close sidebar" : "Open sidebar"}
         >
           {open ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
@@ -117,7 +118,7 @@ export default function Sidebar({
           <div className="p-2 space-y-0.5">
             <button
               onClick={handleNewConversation}
-              className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md hover:bg-sidebar-hover text-sm text-foreground transition-colors"
+              className="flex items-center gap-2 w-full px-2 py-1.5 rounded hover:bg-sidebar-hover text-sm text-foreground transition-colors"
             >
               <SquarePen size={14} />
               <span>New conversation</span>
@@ -131,7 +132,7 @@ export default function Sidebar({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search conversations"
-                className="w-full pl-8 pr-2 py-1.5 rounded-md bg-transparent text-sm text-foreground placeholder-muted outline-none hover:bg-sidebar-hover focus:bg-sidebar-hover transition-colors"
+                className="w-full pl-8 pr-2 py-1.5 rounded bg-transparent text-sm text-foreground placeholder-muted outline-none hover:bg-sidebar-hover focus:bg-sidebar-hover transition-colors"
               />
             </div>
           </div>
@@ -139,7 +140,7 @@ export default function Sidebar({
           <div className="flex items-center gap-1 px-3 py-1">
             <button
               onClick={() => setShowStarred(false)}
-              className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs transition-colors ${
+              className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
                 !showStarred
                   ? "bg-sidebar-active text-foreground"
                   : "text-muted hover:text-foreground"
@@ -150,7 +151,7 @@ export default function Sidebar({
             </button>
             <button
               onClick={() => setShowStarred(true)}
-              className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs transition-colors ${
+              className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
                 showStarred
                   ? "bg-sidebar-active text-foreground"
                   : "text-muted hover:text-foreground"
@@ -162,11 +163,22 @@ export default function Sidebar({
           </div>
 
           <nav className="flex-1 overflow-y-auto px-2 pb-2">
+            {conversations.length === 0 && (
+              <div className="relative border border-black/10 px-3 py-4 mt-2 corner-markers">
+                <span className="cm-tl" />
+                <span className="cm-tr" />
+                <span className="cm-bl" />
+                <span className="cm-br" />
+                <p className="text-xs text-muted text-center">
+                  No conversations yet
+                </p>
+              </div>
+            )}
             {conversations.map((conv) => (
               <div
                 key={conv.id}
                 onClick={() => onSelectConversation(conv.id)}
-                className={`group flex items-center gap-0.5 w-full px-2 py-1 rounded-md text-sm transition-colors cursor-pointer ${
+                className={`group flex items-center gap-0.5 w-full px-2 py-1 rounded text-sm transition-colors cursor-pointer ${
                   conv.id === activeConversationId
                     ? "bg-sidebar-active text-foreground font-medium"
                     : "text-muted hover:bg-sidebar-hover hover:text-foreground"
@@ -175,7 +187,7 @@ export default function Sidebar({
                 <span className="flex-1 truncate">{conv.title}</span>
                 <button
                   onClick={(e) => handleToggleStar(e, conv.id)}
-                  className="shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 hover:text-yellow-400 transition-opacity"
+                  className="shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 hover:text-amber-400 transition-opacity"
                   title={conv.starred ? "Unstar" : "Star"}
                 >
                   <Star size={12} fill={conv.starred ? "currentColor" : "none"} />

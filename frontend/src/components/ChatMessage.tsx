@@ -50,19 +50,27 @@ export default function ChatMessage({
 
   return (
     <div
-      className={`flex ${role === "user" ? "justify-end" : "justify-start"} mb-4`}
+      className={`flex ${role === "user" ? "justify-end" : "justify-start"} mb-4 animate-fade-in`}
     >
       <div
-        className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+        className={`max-w-[80%] px-4 py-3 ${
           role === "user"
             ? "bg-message-bg-user text-message-user"
-            : "bg-sidebar border border-border text-foreground"
-        }`}
+            : "border border-black/20 bg-background"
+        } ${role === "assistant" ? "relative corner-markers" : "rounded"}`}
       >
+        {role === "assistant" && (
+          <>
+            <span className="cm-tl" />
+            <span className="cm-tr" />
+            <span className="cm-bl" />
+            <span className="cm-br" />
+          </>
+        )}
         <p className="text-sm whitespace-pre-wrap leading-relaxed">{content}</p>
 
         {role === "assistant" && thinking_steps && thinking_steps.length > 0 && (
-          <div className="mt-3 border-t border-border pt-2">
+          <div className="mt-3 border-t border-black/10 pt-2">
             <button
               onClick={() => setThinkingOpen(!thinkingOpen)}
               className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground transition-colors"
@@ -76,7 +84,7 @@ export default function ChatMessage({
                 {thinking_steps.map((step, i) => (
                   <div
                     key={i}
-                    className="flex items-center gap-2 text-xs text-muted bg-background rounded-md px-2 py-1.5"
+                    className="flex items-center gap-2 text-xs text-muted bg-sidebar rounded px-2 py-1.5"
                   >
                     {stageIcons[step.stage] || <Brain size={14} />}
                     <span className="font-medium text-foreground/80">
@@ -108,7 +116,7 @@ export default function ChatMessage({
                 {sources.map((src, i) => (
                   <span
                     key={i}
-                    className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-background border border-border text-muted"
+                    className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 border border-black/10 text-muted"
                   >
                     <FileText size={11} />
                     {src.file.replace(/^.*[\\/]/, "")}
