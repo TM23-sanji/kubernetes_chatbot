@@ -51,11 +51,11 @@ def _ensure_metrics():
     # from langchain_openai import OpenAIEmbeddings
     from openai import AsyncOpenAI
 
-    gemini_client = AsyncOpenAI(
-        base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
-        api_key=settings.gemini_api_key,
+    groq_client = AsyncOpenAI(
+        base_url="https://api.groq.com/openai/v1",
+        api_key=settings.groq_api_key,
     )
-    _llm = llm_factory("gemini-2.5-flash-lite", provider="openai", client=gemini_client)
+    _llm = llm_factory("llama-3.1-8b-instant", provider="openai", client=groq_client)
 
     faithfulness.llm = _llm
     # answer_relevancy.llm = _llm
