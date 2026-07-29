@@ -1,17 +1,13 @@
 import asyncio
 import re
 
-from openai import AsyncOpenAI, RateLimitError
-from langchain_openai import ChatOpenAI
-from portkey_ai import PORTKEY_GATEWAY_URL
-
 from app.config import settings
 
 
 _MAX_RETRIES = 10
 
 
-def _parse_retry_after(error: RateLimitError) -> float | None:
+def _parse_retry_after(error) -> float | None:
     msg = str(error)
     m = re.search(r"try again in (\d+)m(\d+\.?\d*)s", msg)
     if m:
@@ -29,13 +25,17 @@ class LLMManager:
         self.chat_model = None
 
     async def initialize(self):
+        from openai import AsyncOpenAI
+        from langchain_openai import ChatOpenAI
+
+        portkey_url = "https://api.portkey.ai/v1"
         self.client = AsyncOpenAI(
-            base_url=PORTKEY_GATEWAY_URL,
+            base_url=portkey_url,
             api_key=settings.portkey_api_key,
         )
         self.chat_model = ChatOpenAI(
             model="@kubernetes-chatbot/llama-3.3-70b-versatile",
-            base_url=PORTKEY_GATEWAY_URL,
+            base_url=portkey_url,
             api_key=settings.portkey_api_key,
             streaming=True,
             temperature=0.1,
@@ -50,6 +50,8 @@ class LLMManager:
             )
 
     async def _call_with_retry(self, model: str, messages: list, max_tokens: int, temperature: float):
+        from openai import RateLimitError
+
         last_err = None
         for attempt in range(_MAX_RETRIES):
             try:
@@ -81,6 +83,8 @@ class LLMManager:
         return response.choices[0].message.content
 
     async def generate_guard(self, system_prompt: str, user_prompt: str, max_tokens: int = 1024) -> str:
+        from openai import RateLimitError
+
         client = self.guard_client or self.client
         model = "llama-3.1-8b-instant" if self.guard_client else "@kubernetes-chatbot/llama-3.3-70b-versatile"
         last_err = None

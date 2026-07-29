@@ -1,5 +1,3 @@
-from langgraph.graph import StateGraph, END
-
 from app.agents.state import AgentState
 from app.agents.nodes import (
     input_guard_node,
@@ -18,7 +16,9 @@ def route_after_guard(state: dict) -> str:
     return "reject"
 
 
-def build_graph() -> StateGraph:
+def build_graph():
+    from langgraph.graph import StateGraph, END
+
     builder = StateGraph(AgentState)
 
     builder.add_node("input_guard", input_guard_node)
@@ -41,4 +41,15 @@ def build_graph() -> StateGraph:
     return builder.compile()
 
 
-agent_graph = build_graph()
+_graph = None
+
+
+class _LazyGraph:
+    def __getattr__(self, name):
+        global _graph
+        if _graph is None:
+            _graph = build_graph()
+        return getattr(_graph, name)
+
+
+agent_graph = _LazyGraph()

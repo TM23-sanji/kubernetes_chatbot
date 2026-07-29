@@ -1,7 +1,5 @@
 import asyncio
 import time
-from qdrant_client import QdrantClient
-from qdrant_client.http.models import Distance, VectorParams, PointStruct
 
 from app.config import settings
 
@@ -15,6 +13,9 @@ class QdrantManager:
     VECTOR_SIZE = 3072
 
     async def initialize(self):
+        from qdrant_client import QdrantClient
+        from qdrant_client.http.models import Distance, VectorParams
+
         self.client = QdrantClient(
             url=settings.qdrant_cluster_endpoint,
             api_key=settings.qdrant_api_key,
@@ -41,6 +42,8 @@ class QdrantManager:
         return result.points
 
     async def upsert(self, points: list[dict], batch_size: int = 50):
+        from qdrant_client.http.models import PointStruct
+
         for i in range(0, len(points), batch_size):
             batch = points[i:i + batch_size]
             point_structs = [

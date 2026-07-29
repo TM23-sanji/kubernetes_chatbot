@@ -1,5 +1,3 @@
-from flashrank import RerankRequest
-
 class Reranker:
     def __init__(self):
         self.model = None
@@ -27,6 +25,7 @@ class Reranker:
                 "text": p.get("text", p.get("payload", {}).get("text", "")),
                 "meta": p,
             })
+        from flashrank import RerankRequest
         request = RerankRequest(query=query, passages=flashrank_passages)
         results = self.model.rerank(request)
 
