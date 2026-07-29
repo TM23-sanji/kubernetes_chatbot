@@ -45,10 +45,9 @@ def _ensure_metrics():
     if _metrics_initialized:
         return
     from ragas.llms import llm_factory
-    # from ragas.embeddings.base import LangchainEmbeddingsWrapper
-    from ragas.metrics import faithfulness, context_precision, context_recall
-    # from ragas.metrics import answer_relevancy
-    # from langchain_openai import OpenAIEmbeddings
+    from ragas.embeddings.base import LangchainEmbeddingsWrapper
+    from ragas.metrics import faithfulness, answer_relevancy, context_precision, context_recall
+    from langchain_google_genai import GoogleGenerativeAIEmbeddings
     from openai import AsyncOpenAI
 
     groq_client = AsyncOpenAI(
@@ -58,14 +57,13 @@ def _ensure_metrics():
     _llm = llm_factory("llama-3.1-8b-instant", provider="openai", client=groq_client)
 
     faithfulness.llm = _llm
-    # answer_relevancy.llm = _llm
-    # answer_relevancy.embeddings = LangchainEmbeddingsWrapper(
-    #     OpenAIEmbeddings(
-    #         model="text-embedding-3-small",
-    #         openai_api_base="https://api.portkey.ai/v1",
-    #         openai_api_key=settings.portkey_api_key,
-    #     )
-    # )
+    answer_relevancy.llm = _llm
+    answer_relevancy.embeddings = LangchainEmbeddingsWrapper(
+        GoogleGenerativeAIEmbeddings(
+            model="models/gemini-embedding-001",
+            google_api_key=settings.gemini_api_key,
+        )
+    )
     context_precision.llm = _llm
     context_recall.llm = _llm
 
@@ -83,7 +81,7 @@ def _make_eval_row():
         contexts: list[str]
         ground_truth: str
         faithfulness: float
-        # answer_relevancy: float
+        answer_relevancy: float
         context_precision: float
         context_recall: float
     return EvalRow
@@ -92,8 +90,7 @@ def _make_eval_row():
 def _make_experiment_func(EvalRow):
     from ragas import experiment
     from ragas.dataset_schema import SingleTurnSample
-    from ragas.metrics import faithfulness, context_precision, context_recall
-    # from ragas.metrics import answer_relevancy
+    from ragas.metrics import faithfulness, answer_relevancy, context_precision, context_recall
 
     @experiment(EvalRow)
     async def eval_single_row(row: dict):
@@ -123,7 +120,7 @@ def _make_experiment_func(EvalRow):
         )
 
         faith = await _ascore_with_retry(faithfulness, sample)
-        # relev = await _ascore_with_retry(answer_relevancy, sample)
+        relev = await _ascore_with_retry(answer_relevancy, sample)
         prec = await _ascore_with_retry(context_precision, sample)
         rec = await _ascore_with_retry(context_recall, sample)
 
@@ -134,7 +131,7 @@ def _make_experiment_func(EvalRow):
             contexts=chunk_texts,
             ground_truth=row.get("ground_truth", ""),
             faithfulness=faith,
-            # answer_relevancy=relev,
+            answer_relevancy=relev,
             context_precision=prec,
             context_recall=rec,
         )
@@ -208,17 +205,20 @@ class TestPipeline:
         print("\nPer-query scores:")
         for _, row in df.iterrows():
             print(f"  {row['id']}: faith={row['faithfulness']:.3f} "
+                  f"relev={row['answer_relevancy']:.3f} "
                   f"prec={row['context_precision']:.3f} "
                   f"recall={row['context_recall']:.3f}")
 
-        valid = df.dropna(subset=["faithfulness", "context_precision", "context_recall"])
+        valid = df.dropna(subset=["faithfulness", "answer_relevancy", "context_precision", "context_recall"])
         print(f"\nValid rows: {len(valid)}/{len(df)}")
 
         if len(valid) > 0:
             avg_faith = valid["faithfulness"].mean()
+            avg_relev = valid["answer_relevancy"].mean()
             avg_prec = valid["context_precision"].mean()
             avg_recall = valid["context_recall"].mean()
             print(f"\nAverages (valid only): faith={avg_faith:.3f} "
+                  f"relev={avg_relev:.3f} "
                   f"prec={avg_prec:.3f} recall={avg_recall:.3f}")
 
             print("Persisting to EvalRun table...")
@@ -229,6 +229,7 @@ class TestPipeline:
                     prompt_version="generation_v1.1",
                     dataset_name="test_queries_20",
                     faithfulness=float(avg_faith),
+                    relevancy=float(avg_relev),
                     context_recall=float(avg_recall),
                     created_at=datetime.now(timezone.utc),
                 )
