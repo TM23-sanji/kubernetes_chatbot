@@ -11,10 +11,17 @@ from app.agents.graph import agent_graph
 def main():
     graph = agent_graph.get_graph()
 
-    print("=" * 60)
-    print("ASCII Graph")
-    print("=" * 60)
-    print(graph.draw_ascii())
+    try:
+        ascii_graph = graph.draw_ascii()
+    except ImportError:
+        ascii_graph = None
+        print("(ASCII graph skipped - install grandalf: pip install grandalf)")
+
+    if ascii_graph:
+        print("=" * 60)
+        print("ASCII Graph")
+        print("=" * 60)
+        print(ascii_graph)
 
     print("\n" + "=" * 60)
     print("Mermaid")
