@@ -1,6 +1,6 @@
 # Kubernetes RAG Chatbot
 
-An AI-powered Kubernetes assistant using RAG (Retrieval-Augmented Generation) with LangGraph, Portkey LLM gateway, Gemini embeddings, and Qdrant vector store.
+An AI-powered Kubernetes assistant using RAG (Retrieval-Augmented Generation) with LangGraph, Portkey LLM gateway, Gemini embeddings, Qdrant vector store, and mem0-based conversational memory.
 
 ## Architecture
 
@@ -8,11 +8,13 @@ An AI-powered Kubernetes assistant using RAG (Retrieval-Augmented Generation) wi
 
 **Pipeline**: User Query → Input Guard → Router → Retrieve (Qdrant) → Rerank (FlashRank) → Generate (Groq via Portkey) → Output Guard → Response
 
+Every Nth user turn (default 5, `MEMORY_COMPACTION_EVERY`), the completed conversation is compacted into long-term memory (mem0 Platform API, scoped per conversation). On subsequent turns, relevant memories are retrieved and injected into the generation prompt, and shown in the right-hand Memory sidebar.
+
 ## Stack
 
 | Component | Technology |
 |-----------|------------|
-| Frontend | Next.js 15 (App Router, Tailwind, TypeScript) |
+| Frontend | Next.js 16 (App Router, Tailwind, TypeScript) |
 | Backend | FastAPI (Python 3.11, asyncpg) |
 | Agent Framework | LangGraph (6-node linear pipeline) |
 | LLM Gateway | Portkey (Groq primary → OpenAI fallback) |
@@ -21,8 +23,9 @@ An AI-powered Kubernetes assistant using RAG (Retrieval-Augmented Generation) wi
 | Reranker | FlashRank `ms-marco-MiniLM-L-12-v2` |
 | Database | NeonDB (PostgreSQL) |
 | Cache | Upstash Redis |
+| Memory | mem0 Platform API (conversational memory) |
 | Tracing | LangSmith + Logfire |
-| Deployment | Docker → ECR → ECS Fargate |
+| Deployment | Docker → Railway / Render |
 
 ## Setup
 
@@ -38,7 +41,7 @@ An AI-powered Kubernetes assistant using RAG (Retrieval-Augmented Generation) wi
 cp .env.example .env
 # Fill in: PORTKEY_API_KEY, GROQ_API_KEY, QDRANT_API_KEY, GEMINI_API_KEY,
 # NEON_DB_URL, UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN,
-# LANGSMITH_API_KEY, LOGFIRE_TOKEN
+# LANGSMITH_API_KEY, LOGFIRE_TOKEN, MEM0_API_KEY
 ```
 
 ### Backend

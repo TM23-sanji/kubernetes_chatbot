@@ -10,6 +10,7 @@ import {
   Route,
   Sparkles,
   Archive,
+  Database,
 } from "lucide-react";
 
 interface Source {
@@ -39,6 +40,7 @@ const stageIcons: Record<string, React.ReactNode> = {
   llm: <Brain size={14} />,
   guard_output: <ShieldCheck size={14} />,
   compaction: <Archive size={14} />,
+  cache: <Database size={14} />,
 };
 
 export default function ChatMessage({

@@ -9,8 +9,7 @@ import {
   Star,
   Trash2,
 } from "lucide-react";
-import { useState, useEffect } from "react";
-import { CornerMarkers } from "./CornerMarkers";
+import { useState, useEffect, useCallback } from "react";
 
 interface Conversation {
   id: string;
@@ -40,11 +39,7 @@ export default function Sidebar({
   const [searchQuery, setSearchQuery] = useState("");
   const [conversations, setConversations] = useState<Conversation[]>([]);
 
-  useEffect(() => {
-    fetchConversations();
-  }, [showStarred, searchQuery]);
-
-  const fetchConversations = async () => {
+  const fetchConversations = useCallback(async () => {
     try {
       const params = new URLSearchParams();
       if (showStarred) params.set("filter", "starred");
@@ -57,13 +52,18 @@ export default function Sidebar({
     } catch {
       // silently fail
     }
-  };
+  }, [showStarred, searchQuery]);
+
+  useEffect(() => {
+    void (async () => {
+      await fetchConversations();
+    })();
+  }, [fetchConversations]);
 
   const handleNewConversation = async () => {
     try {
       const res = await fetch(`${API_BASE}/api/conversations`, { method: "POST" });
       if (res.ok) {
-        const data = await res.json();
         onNewConversation();
         fetchConversations();
       }

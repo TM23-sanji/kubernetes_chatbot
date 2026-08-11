@@ -13,7 +13,6 @@ import Sidebar from "@/components/Sidebar";
 import ChatInput from "@/components/ChatInput";
 import ChatMessage from "@/components/ChatMessage";
 import MemorySidebar from "@/components/MemorySidebar";
-import { CornerMarkers } from "@/components/CornerMarkers";
 
 interface Message {
   id: string;
@@ -74,18 +73,16 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (activeConversationId) {
-      loadMessages(activeConversationId);
-      loadMemory(activeConversationId);
-    } else {
-      setMessages([]);
-      setMemories([]);
-    }
+    if (!activeConversationId) return;
+    void (async () => {
+      await loadMessages(activeConversationId);
+      await loadMemory(activeConversationId);
+    })();
   }, [activeConversationId, loadMessages, loadMemory, conversationKey]);
 
   const handleSend = async (message: string) => {
     setLoading(true);
-    const userTs = Date.now();
+    const userTs = crypto.randomUUID();
     const tempUserId = `user-${userTs}`;
     const assistantId = `stream-${userTs}`;
     setMessages((prev) => [
@@ -191,11 +188,13 @@ export default function Home() {
   const handleNewConversation = () => {
     setActiveConversationId(null);
     setMessages([]);
+    setMemories([]);
     setConversationKey((k) => k + 1);
   };
 
   const handleSelectConversation = (id: string | null) => {
     setActiveConversationId(id);
+    if (id === null) setMemories([]);
     setConversationKey((k) => k + 1);
   };
 
