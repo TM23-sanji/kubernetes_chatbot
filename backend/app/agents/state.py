@@ -20,3 +20,4 @@ class AgentState(TypedDict):
     guardrail_input_passed: bool
     guardrail_output_passed: bool
     conversation_history: str
+    memory_context: str

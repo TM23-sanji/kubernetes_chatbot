@@ -9,6 +9,7 @@ import {
   ShieldCheck,
   Route,
   Sparkles,
+  Archive,
 } from "lucide-react";
 
 interface Source {
@@ -37,6 +38,7 @@ const stageIcons: Record<string, React.ReactNode> = {
   rerank: <Sparkles size={14} />,
   llm: <Brain size={14} />,
   guard_output: <ShieldCheck size={14} />,
+  compaction: <Archive size={14} />,
 };
 
 export default function ChatMessage({

@@ -12,6 +12,7 @@ import {
 import Sidebar from "@/components/Sidebar";
 import ChatInput from "@/components/ChatInput";
 import ChatMessage from "@/components/ChatMessage";
+import MemorySidebar from "@/components/MemorySidebar";
 import { CornerMarkers } from "@/components/CornerMarkers";
 
 interface Message {
@@ -20,6 +21,13 @@ interface Message {
   content: string;
   sources?: { file: string; chunk: number; score: number }[];
   thinking_steps?: { stage: string; detail: string; duration_ms: number }[];
+}
+
+interface MemoryItem {
+  id: string;
+  memory: string;
+  category: string | null;
+  score: number | null;
 }
 
 const quickActions = [
@@ -35,6 +43,8 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [memoryOpen, setMemoryOpen] = useState(true);
+  const [memories, setMemories] = useState<MemoryItem[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
@@ -52,13 +62,26 @@ export default function Home() {
     }
   }, []);
 
+  const loadMemory = useCallback(async (convId: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/chat/${convId}/memory`);
+      if (res.ok) {
+        setMemories(await res.json());
+      }
+    } catch {
+      // silent
+    }
+  }, []);
+
   useEffect(() => {
     if (activeConversationId) {
       loadMessages(activeConversationId);
+      loadMemory(activeConversationId);
     } else {
       setMessages([]);
+      setMemories([]);
     }
-  }, [activeConversationId, loadMessages, conversationKey]);
+  }, [activeConversationId, loadMessages, loadMemory, conversationKey]);
 
   const handleSend = async (message: string) => {
     setLoading(true);
@@ -122,6 +145,7 @@ export default function Home() {
             } else if (parsed.done) {
               const d = parsed.done;
               setActiveConversationId(d.conversation_id);
+              loadMemory(d.conversation_id);
               setMessages((prev) => {
                 const updated = [...prev];
                 const idx = updated.findIndex((m) => m.id === assistantId);
@@ -241,6 +265,11 @@ export default function Home() {
         )}
         <ChatInput onSend={handleSend} onAttach={handleAttach} loading={loading} />
       </main>
+      <MemorySidebar
+        open={memoryOpen}
+        onToggle={() => setMemoryOpen(!memoryOpen)}
+        memories={memories}
+      />
     </div>
   );
 }

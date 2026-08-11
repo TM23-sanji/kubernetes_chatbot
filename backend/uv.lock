@@ -1984,6 +1984,7 @@ dependencies = [
     { name = "llvmlite" },
     { name = "logfire", extra = ["asyncpg", "fastapi", "httpx", "requests"] },
     { name = "loguru" },
+    { name = "mem0ai" },
     { name = "nemoguardrails" },
     { name = "nest-asyncio" },
     { name = "numba" },
@@ -2039,6 +2040,7 @@ requires-dist = [
     { name = "llvmlite", specifier = ">=0.40.0" },
     { name = "logfire", extras = ["asyncpg", "fastapi", "httpx", "requests"] },
     { name = "loguru" },
+    { name = "mem0ai", specifier = ">=2.0.17" },
     { name = "nemoguardrails" },
     { name = "nest-asyncio" },
     { name = "numba", specifier = ">=0.57.1" },
@@ -2644,6 +2646,25 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d6/54/cfe61301667036ec958cb99bd3efefba235e65cdeb9c84d24a8293ba1d90/mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba", size = 8729, upload-time = "2022-08-14T12:40:10.846Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b3/38/89ba8ad64ae25be8de66a6d463314cf1eb366222074cfda9ee839c56a4b4/mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8", size = 9979, upload-time = "2022-08-14T12:40:09.779Z" },
+]
+
+[[package]]
+name = "mem0ai"
+version = "2.0.17"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "httpx" },
+    { name = "openai" },
+    { name = "posthog" },
+    { name = "protobuf" },
+    { name = "pydantic" },
+    { name = "pytz" },
+    { name = "qdrant-client" },
+    { name = "sqlalchemy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/87/42/4e266867444612ec4069bf57cd7c5e7ffbd53b4ee8216551d8a89d978c7f/mem0ai-2.0.17.tar.gz", hash = "sha256:fc84dcf12b656d63d662d57353d137ddccfcf67665cbe2476793a8115930c262", size = 248132, upload-time = "2026-08-05T16:43:37.648Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f4/bf/f8167f4e9e5d39c698a82c411700fffcbefeced0f8dec6b0e6a718ed0537/mem0ai-2.0.17-py3-none-any.whl", hash = "sha256:1521209f0ab4c77b7e5777aa1b0b5f0104efa06ca5b9eddb804cdd091c17726a", size = 343876, upload-time = "2026-08-05T16:43:36.096Z" },
 ]
 
 [[package]]

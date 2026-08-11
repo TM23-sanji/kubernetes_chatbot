@@ -57,6 +57,7 @@ dependencies = [
     "pytz",
     "nest-asyncio",
     "streamlit",
+    "mem0ai>=2.0.17",
 ]
 [project.optional-dependencies]
 dev = ["pytest", "pytest-asyncio", "httpx", "ruff"]

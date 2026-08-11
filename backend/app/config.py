@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     backend_url: str = "http://localhost:8000"
     judge_openai_api_key: str = ""
 
+    mem0_api_key: str = ""
+    memory_enabled: bool = True
+    memory_compaction_every: int = 5
+
     model_config = {"env_file": "../.env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
 
