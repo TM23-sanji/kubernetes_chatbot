@@ -151,7 +151,7 @@ export default function Home() {
                 const idx = updated.findIndex((m) => m.id === assistantId);
                 if (idx === -1) return prev;
                 updated[idx] = {
-                  id: d.conversation_id + "-assistant",
+                  id: assistantId,
                   role: "assistant",
                   content: d.reply,
                   sources: d.sources,

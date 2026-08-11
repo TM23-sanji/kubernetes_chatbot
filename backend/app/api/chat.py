@@ -102,7 +102,9 @@ async def chat(req: ChatRequest, session: AsyncSession = Depends(get_session)):
                 if m.role in ("user", "assistant")
             ]
             await memory_manager.add_turns(conv_id, completed)
-        memory_context_list = await memory_manager.search(conv_id, req.message)
+        memory_context_list = []
+        if _turn_count(msgs) > settings.memory_compaction_every:
+            memory_context_list = await memory_manager.search(conv_id, req.message)
         memory_context = "\n".join(f"- {m}" for m in memory_context_list)
         history = _format_history(msgs, window=1)
         initial_state = {
@@ -176,7 +178,9 @@ async def chat_stream(req: ChatRequest, session: AsyncSession = Depends(get_sess
             if m.role in ("user", "assistant")
         ]
         await memory_manager.add_turns(conv_id, completed)
-    memory_context_list = await memory_manager.search(conv_id, req.message)
+    memory_context_list = []
+    if _turn_count(msgs) > settings.memory_compaction_every:
+        memory_context_list = await memory_manager.search(conv_id, req.message)
     memory_context = "\n".join(f"- {m}" for m in memory_context_list)
     history = _format_history(msgs, window=1)
 
