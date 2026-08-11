@@ -17,14 +17,14 @@ Tracking the experiments and enhancements to tackle one phase at a time.
 
 ## Phase 1: Ingestion & Document Management
 
-- [ ] Real document upload endpoint — replace the `/api/chat/upload` stub with `POST /api/ingest/upload` (save file → parse → clean → chunk → embed → ingest → return status)
-- [ ] Support upload formats: `.pdf`, `.pptx`, `.docx`, `.html`, `.txt`, plus images (`.png`, `.jpg`, `.jpeg`, `.tiff`, `.webp`) via OCR
-- [ ] OCR for scanned/image-based PDFs: rasterize pages with PyMuPDF, run local OCR (rapidocr-onnxruntime); pure-pip, no system deps, no API calls
-- [ ] Cleaning filters before chunking: alphanumeric-ratio check (drops CSS/JS/code), min word count, near-duplicate (MinHash/LSH) dedup
-- [ ] Incremental re-ingestion — use the per-file `checksum` to skip unchanged files and only process new/changed ones
-- [ ] Document listing/management API — list ingested docs, view chunk counts, delete/re-ingest a single doc
-- [ ] Hybrid search payload — ensure metadata (source, chunk_index, data_version) is searchable/filterable for later per-intent routing
-- [ ] Upload UI in the frontend (drag-and-drop docs, progress + status feedback)
+- [x] Real document upload endpoint — replace the `/api/chat/upload` stub with `POST /api/ingest/upload` (save file → parse → clean → chunk → embed → ingest → return status)
+- [x] Support upload formats: `.pdf`, `.pptx`, `.docx`, `.html`, `.txt`, plus images (`.png`, `.jpg`, `.jpeg`, `.tiff`, `.webp`) via OCR
+- [x] OCR for scanned/image-based PDFs: rasterize pages with PyMuPDF, run local OCR (rapidocr-onnxruntime); pure-pip, no system deps, no API calls
+- [x] Cleaning filters before chunking: alphanumeric-ratio check (drops CSS/JS/code), min word count, near-duplicate (MinHash/LSH) dedup
+- [x] Incremental re-ingestion — use the per-file `checksum` to skip unchanged files and only process new/changed ones
+- [x] Document listing/management API — list ingested docs, view chunk counts, delete/re-ingest a single doc
+- [x] Hybrid search payload — ensure metadata (source, chunk_index, data_version) is searchable/filterable for later per-intent routing
+- [x] Upload UI in the frontend (drag-and-drop docs, progress + status feedback)
 
 **Exit criteria:** uploading a new doc (text or image/scanned PDF) makes it retrievable in a follow-up chat; re-uploading an unchanged file is skipped by checksum.
 

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, DateTime, Float, JSON, Boolean, func
+from sqlalchemy import Column, String, Text, DateTime, Float, JSON, Boolean, Integer, func
 from sqlalchemy.orm import DeclarativeBase
 
 
@@ -49,3 +49,14 @@ class IngestionRun(Base):
     files_processed = Column(JSON)
     chunk_count = Column(Float)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class IngestedFile(Base):
+    __tablename__ = "ingested_files"
+
+    checksum = Column(String, primary_key=True)
+    filename = Column(String, nullable=False)
+    path = Column(String, nullable=False)
+    chunk_count = Column(Integer, default=0)
+    data_version = Column(String)
+    ingested_at = Column(DateTime(timezone=True), server_default=func.now())
