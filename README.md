@@ -1,5 +1,7 @@
 # Kubernetes RAG Chatbot
 
+![Demo](media/sample.png)
+
 An AI-powered Kubernetes assistant using RAG (Retrieval-Augmented Generation) with LangGraph, Portkey LLM gateway, Gemini embeddings, and Qdrant vector store.
 
 ## Architecture
