@@ -57,6 +57,8 @@ dependencies = [
     "pytz",
     "nest-asyncio",
     "streamlit",
+    "rapidocr-onnxruntime>=1.4.4",
+    "pymupdf>=1.28.2",
 ]
 [project.optional-dependencies]
 dev = ["pytest", "pytest-asyncio", "httpx", "ruff"]

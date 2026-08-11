@@ -246,16 +246,6 @@ async def chat_stream(req: ChatRequest, session: AsyncSession = Depends(get_sess
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
-@router.post("/upload")
-async def upload_file(file: UploadFile = File(...)):
-    return {
-        "file_id": str(uuid.uuid4()),
-        "filename": file.filename,
-        "type": file.content_type,
-        "preview": None,
-    }
-
-
 @router.get("/{conv_id}/history")
 async def get_history(conv_id: str, session: AsyncSession = Depends(get_session)):
     conv = await repo.get_conversation(session, conv_id)
