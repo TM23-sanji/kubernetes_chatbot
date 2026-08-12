@@ -111,6 +111,26 @@
         color: #ffd93d;
       }
 
+      article table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.8em;
+        margin-bottom: 1rem;
+      }
+
+      article th, article td {
+        border: 1px solid var(--highlight-border);
+        padding: 0.5rem;
+        text-align: left;
+        color: var(--text-light);
+        vertical-align: top;
+      }
+
+      article th {
+        color: var(--text-main);
+        font-weight: bold;
+      }
+
       .katex {
         color: var(--text-light);
       }
@@ -247,33 +267,355 @@ Return to Frontend</pre>
         </section>
 
         <section>
+          <h2>how the pieces connect</h2>
+          <p>
+            Beyond the diagram, it helps to see the actual code that wires this together. The whole
+            pipeline is a single FastAPI process with lazy-initialized singletons for every external
+            dependency &mdash; Qdrant, Gemini embeddings, the Portkey-backed LLM, and the FlashRank
+            reranker. They are bootstrapped once at startup inside the app&rsquo;s lifespan and closed
+            cleanly on shutdown:
+          </p>
+          <pre>
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    if settings.langsmith_api_key:
+        os.environ["LANGSMITH_TRACING"] = "true"
+
+    await db_manager.initialize()
+    await redis_manager.initialize()
+    await qdrant_manager.initialize()
+    await embedding_manager.initialize()
+    await llm_manager.initialize()
+    await reranker.initialize()
+    yield
+    await db_manager.close()
+    await redis_manager.close()
+    await qdrant_manager.close()
+    await embedding_manager.close()
+    await llm_manager.close()
+    await reranker.close()</pre>
+          <p>
+            Importing the heavy SDKs (portkey, qdrant-client, google-genai, flashrank, langgraph)
+            at module load made cold starts take minutes. Each manager now imports its SDK lazily
+            inside <code>initialize()</code>, cutting startup from ~200s to under 4 seconds.
+          </p>
+
+          <h3>the agent graph</h3>
+          <p>
+            LangGraph is the conductor. Six nodes run in sequence, with a single conditional branch:
+            the input guard decides whether a query is even about Kubernetes. If not, we short-circuit
+            to a reject node instead of burning LLM and vector-store calls.
+          </p>
+          <pre>
+def build_graph():
+    from langgraph.graph import StateGraph, END
+
+    builder = StateGraph(AgentState)
+
+    builder.add_node("input_guard", input_guard_node)
+    builder.add_node("reject", reject_node)
+    builder.add_node("router", router_node)
+    builder.add_node("retrieve", retrieve_node)
+    builder.add_node("rerank", rerank_node)
+    builder.add_node("generate", generate_node)
+    builder.add_node("output_guard", output_guard_node)
+
+    builder.set_entry_point("input_guard")
+    builder.add_conditional_edges(
+        "input_guard", route_after_guard,
+        {"router": "router", "reject": "reject"}
+    )
+    builder.add_edge("reject", END)
+    builder.add_edge("router", "retrieve")
+    builder.add_edge("retrieve", "rerank")
+    builder.add_edge("rerank", "generate")
+    builder.add_edge("generate", "output_guard")
+    builder.add_edge("output_guard", END)
+
+    return builder.compile()</pre>
+          <p>
+            State flows through the graph as a typed dict. Chunks and thinking steps accumulate with
+            an <code>operator.add</code> reducer, so each node&rsquo;s output is merged into a shared
+            state that the next node reads.
+          </p>
+          <pre>
+class AgentState(TypedDict):
+    messages: Annotated[list, operator.add]
+    user_query: str
+    intent: str
+    retrieved_chunks: list
+    reranked_chunks: list
+    generated_answer: str
+    sources: list
+    thinking_steps: Annotated[list, operator.add]
+    guardrail_input_passed: bool
+    guardrail_output_passed: bool
+    conversation_history: str</pre>
+
+          <h3>guardrails</h3>
+          <p>
+            The input guard is a small dedicated LLM call that answers only PASS or REJECT. It runs
+            against a separate Groq client (<code>llama-3.1-8b-instant</code>) so guardrail traffic
+            never competes with the main generation model for tokens.
+          </p>
+          <pre>
+async def input_guard_node(state: dict) -&gt; dict:
+    query = state["user_query"]
+    system = (
+        "You are a safety and Kubernetes topic classifier. "
+        "Reply ONLY with PASS or REJECT."
+    )
+    result = await llm_manager.generate_guard(system, query, max_tokens=100)
+    passed = "pass" in result.strip().lower()
+    return {"guardrail_input_passed": passed, "thinking_steps": [step]}</pre>
+
+          <h3>retrieve + rerank</h3>
+          <p>
+            Retrieval embeds the query with Gemini and searches Qdrant for the 10 nearest chunks.
+            FlashRank then rescored those 10 down to the 5 most relevant using a local cross-encoder,
+            trading a bit of latency for much better precision than raw cosine similarity.
+          </p>
+          <pre>
+async def retrieve_node(state: dict) -&gt; dict:
+    vector = await embedding_manager.embed(query)
+    results = await qdrant_manager.search(vector, top_k=10)
+    return {"retrieved_chunks": results, "thinking_steps": [step]}
+
+async def rerank_node(state: dict) -&gt; dict:
+    results = await reranker.rerank(query, chunks, top_k=5)
+    return {"reranked_chunks": results, "thinking_steps": [step]}</pre>
+          <p>
+            The reranker normalizes Qdrant&rsquo;s <code>ScoredPoint</code> objects into plain dicts
+            so the downstream nodes &mdash; and the frontend &mdash; only ever deal with a consistent
+            shape: <code>{text, source, chunk_index, score}</code>.
+          </p>
+
+          <h3>generation with history</h3>
+          <p>
+            The generate node builds a single prompt from the reranked context, the previous two
+            conversation turns, and the current question. The context block is prefixed with source
+            names and relevance scores so the model can cite claims.
+          </p>
+          <pre>
+parts = []
+if context:
+    parts.append(f"Context:\n{context}")
+historical = state.get("conversation_history", "")
+if historical:
+    parts.append(f"Conversation history:\n{historical}")
+parts.append(f"Current Question: {query}")
+
+response = await llm_manager.chat_model.ainvoke([
+    SystemMessage(content=system),
+    HumanMessage(content="\n\n".join(parts)),
+])</pre>
+
+          <h3>the llm layer</h3>
+          <p>
+            All LLM traffic goes through Portkey as an OpenAI-compatible gateway. The main generator
+            uses <code>llama-3.3-70b-versatile</code>; guardrails use Groq directly. A shared retry
+            loop parses Groq&rsquo;s &ldquo;try again in XmYs&rdquo; rate-limit message and backs off
+            exponentially instead of failing.
+          </p>
+          <pre>
+self.chat_model = ChatOpenAI(
+    model="@kubernetes-chatbot/llama-3.3-70b-versatile",
+    base_url="https://api.portkey.ai/v1",
+    api_key=settings.portkey_api_key,
+    streaming=True,
+    temperature=0.1,
+    max_tokens=2048,
+    max_retries=10,
+)</pre>
+
+          <h3>the request path</h3>
+          <p>
+            <code>/api/chat</code> is where it all comes together: resolve the conversation, save the
+            user message, check the Redis cache by query hash, run the graph, persist the reply, and
+            cache the result for 24 hours. On a cache hit, zero LLM calls happen.
+          </p>
+          <pre>
+cached = await redis_manager.get(cache_key)
+if not cached:
+    history = await _load_history(session, conv_id)
+    result = await agent_graph.ainvoke(initial_state)
+    reply = result.get("generated_answer", "")
+
+    await redis_manager.set(cache_key, json.dumps({...}), ttl=86400)
+
+await repo.add_message(session, conv_id, "assistant", reply, ...)
+return ChatResponse(reply=reply, sources=sources, thinking_steps=thinking)</pre>
+          <p>
+            Every node records a <code>ThinkingStep</code> (stage, detail, duration) which is stored
+            separately from the message content. That is what powers the expandable &ldquo;thinking&rdquo;
+            trace in the UI &mdash; the user sees the retrieval sources, rerank scores, and groundedness
+            ratio without polluting the actual chat text.
+          </p>
+        </section>
+
+        <section>
+          <h2>ingestion: from raw scraped docs to clean chunks</h2>
+          <p>
+            The pipeline above assumes the vector store is already populated. The harder, often-ignored
+            problem is what feeds it: raw scraped HTML from the Kubernetes docs site. A scraper pulls
+            pages that include navigation, cookie banners, ad inserts, inline CSS/JS, and boilerplate
+            that is repeated across hundreds of pages. If you chunk and embed that verbatim, your index
+            fills with noise and duplicates &mdash; and retrieval quality collapses.
+          </p>
+          <p>
+            This section walks through a concrete two-stage cleaning pipeline we&rsquo;re experimenting
+            with before any text reaches the chunker or the embedding model.
+          </p>
+
+          <h3>sample inputs (raw scraped chunks)</h3>
+          <p>
+            <strong>chunk a (css/js noise):</strong>
+            <code>.nav-link { color: #333; margin: 0 10px; } function loadAnalytics() { window.dataLayer.push(arguments); }</code><br />
+            <strong>chunk b (nav header &amp; ad insert):</strong>
+            <code>Home &gt; Products &gt; RAG Systems. &lt;div&gt;Ad: Subscribe to our Newsletter!&lt;/div&gt; Modern vector search uses HNSW indexes for approximate nearest neighbor retrieval.</code><br />
+            <strong>chunk c (duplicate cookie notice):</strong>
+            <code>We use cookies to enhance your experience. By continuing to visit this site you agree to our use of cookies and Privacy Policy.</code> <em>(scraped across 50 different pages)</em><br />
+            <strong>chunk d (low-quality short text):</strong>
+            <code>Read more... Share on Twitter.</code>
+          </p>
+
+          <h3>stage 1: deterministic heuristics (regex &amp; string metrics)</h3>
+          <p>
+            Stage 1 runs ultra-fast Python checks to eliminate non-text code artifacts and strip
+            inline garbage. The key signal is the <em>alphanumeric ratio</em> &mdash; JS, CSS, and raw
+            code are full of symbols (<code>{ } ( ) # ;</code>) so their ratio is low, while prose is
+            mostly letters and numbers.
+          </p>
+          <pre>
+import re
+
+def stage_1_clean(text: str) -&gt; dict:
+    # 1. Strip inline HTML tags / noise patterns
+    cleaned = re.sub(r'&lt;div&gt;.*?&lt;/div&gt;', '', text, flags=re.IGNORECASE)
+    cleaned = re.sub(r'&lt;[^&gt;]+&gt;', '', cleaned).strip()
+
+    # 2. Metric: Alphanumeric ratio (identifies JS, CSS, and raw code)
+    alphanumeric_count = sum(c.isalnum() for c in cleaned)
+    total_count = len(cleaned) or 1
+    alpha_ratio = alphanumeric_count / total_count
+
+    # 3. Decision
+    if alpha_ratio &lt; 0.65:  # Too many symbols like {}, (), #, ;
+        return {"status": "REJECTED", "reason": "Low Alphanumeric Ratio (Code/CSS)", "text": None}
+
+    return {"status": "PASSED", "reason": "Cleaned Inline Noise", "text": cleaned}</pre>
+
+          <p><strong>stage 1 results</strong></p>
+          <table>
+            <tr><th>Input Chunk</th><th>Alpha Ratio</th><th>Action</th><th>Result Text After Stage 1</th></tr>
+            <tr><td>Chunk A</td><td>0.54</td><td>REJECT</td><td>Dropped (CSS/JS code detected)</td></tr>
+            <tr><td>Chunk B</td><td>0.88</td><td>PASS</td><td>&ldquo;Home &gt; Products &gt; RAG Systems. Modern vector search uses HNSW indexes for approximate nearest neighbor retrieval.&rdquo;</td></tr>
+            <tr><td>Chunk C</td><td>0.82</td><td>PASS</td><td>&ldquo;We use cookies to enhance your experience. By continuing to visit this site you agree to our use of cookies and Privacy Policy.&rdquo;</td></tr>
+            <tr><td>Chunk D</td><td>0.81</td><td>PASS</td><td>&ldquo;Read more... Share on Twitter.&rdquo;</td></tr>
+          </table>
+
+          <h3>stage 2: deduplication &amp; thresholding (micro-ml)</h3>
+          <p>
+            Stage 2 takes the chunks that passed Stage 1 and applies global deduplication via
+            <em>MinHash + LSH</em> plus length/density thresholds. This is where the same cookie notice
+            scraped from 50 pages collapses to a single fingerprint and gets dropped.
+          </p>
+          <pre>
+from datasketch import MinHash, MinHashLSH
+
+# Global store for tracking seen chunk fingerprints
+lsh = MinHashLSH(threshold=0.8, num_perm=128)
+seen_hashes = {}
+
+def stage_2_filter(chunk_id: str, text: str) -&gt; dict:
+    words = text.split()
+
+    # 1. Length Threshold (Drop tiny low-information chunks)
+    if len(words) &lt; 10:
+        return {"status": "REJECTED", "reason": "Under minimum word count (&lt; 10 words)"}
+
+    # 2. Near-Duplicate Detection via MinHash
+    m = MinHash(num_perm=128)
+    for word in words:
+        m.update(word.lower().encode('utf8'))
+
+    duplicates = lsh.query(m)
+    if duplicates:
+        return {"status": "REJECTED", "reason": f"Duplicate of Chunk {duplicates[0]}"}
+
+    # Store new unique hash
+    lsh.insert(chunk_id, m)
+    return {"status": "PASSED", "reason": "Unique and high quality"}</pre>
+
+          <p><strong>stage 2 results</strong></p>
+          <table>
+            <tr><th>Input Chunk</th><th>Word Count</th><th>MinHash Query</th><th>Action</th><th>Final Pipeline Outcome</th></tr>
+            <tr><td>Chunk B</td><td>16 words</td><td>Unique</td><td>PASS</td><td>KEPT for vector embedding</td></tr>
+            <tr><td>Chunk C</td><td>22 words</td><td>Matches Chunk 12</td><td>REJECT</td><td>Dropped (Boilerplate cookie notice seen on page 12)</td></tr>
+            <tr><td>Chunk D</td><td>5 words</td><td>Unique</td><td>REJECT</td><td>Dropped (Too short / under 10 words)</td></tr>
+          </table>
+
+          <p><strong>pipeline summary</strong></p>
+          <p>
+            Out of 4 raw, noisy scraped inputs: <strong>75% of noise filtered instantly on CPU in less
+            than 1 millisecond</strong>. One clean, high-value chunk (Chunk B) makes it to the embedding
+            model and the Qdrant index.
+          </p>
+          <p>
+            From here the surviving chunks can go through an optional enhancement stage &mdash; for
+            example a local vLLM serving a small model to reconstruct tables via OCR, repair broken
+            HTML, and extract a summary or metadata (title, headers, reading time) that gets stored in
+            the Qdrant payload alongside the chunk text. Only after that do the clean chunks flow into
+            the existing <code>chunk_text()</code> splitter and the <code>run_ingestion()</code> upsert.
+          </p>
+        </section>
+
+        <section>
           <h2>future steps</h2>
           <p>
             The system works end-to-end today, but there&rsquo;s a long roadmap ahead:
           </p>
           <p>
-            <strong>evaluation pipeline.</strong> Integrate RAGAS and DeepEval to score retrieval precision,
-            answer faithfulness, and answer relevancy automatically. Store results in the
-            <code>EvalRun</code> table with prompt version tracking.
+            <strong>streaming.</strong> The pipeline now streams via SSE: thinking steps arrive as
+            the graph executes, tokens stream as the model generates, and a final <code>done</code>
+            event carries the full answer. Perceived latency dropped dramatically &mdash; the first
+            token appears long before the graph finishes.
           </p>
           <p>
-            <strong>prompt versioning.</strong> Prompts are already loaded from YAML files with a
-            <code>version</code> field. The eval pipeline should log the prompt version used for each
-            generation so we can A/B test prompt changes.
+            <strong>evaluation pipeline.</strong> RAGAS is wired up in the test suite, scoring
+            faithfulness, answer relevancy, context precision, and context recall against a 20-query
+            dataset. Results persist to the <code>EvalRun</code> table with data and prompt versions.
           </p>
           <p>
-            <strong>streaming.</strong> Currently the entire agent graph runs synchronously before
-            returning. Streaming the generation token-by-token would dramatically improve perceived
-            latency.
+            <strong>document ingestion.</strong> The upload endpoint is still a stub. Real document
+            upload (save &rarr; parse &rarr; chunk &rarr; embed &rarr; ingest) and incremental
+            re-ingestion via file checksums is the next milestone, so docs can be added without a
+            full re-index.
           </p>
           <p>
-            <strong>multi-modal support.</strong> Users should be able to upload architecture diagrams
-            or YAML manifests and have the system analyze them visually or structurally.
+            <strong>proper memory.</strong> Today history is just the last two turns replayed as text.
+            The plan is true conversation state via a LangGraph checkpointer &mdash; so the agent can
+            remember across a session without copying strings into every prompt.
+          </p>
+          <p>
+            <strong>real tool calls.</strong> The graph is currently a fixed six-node pipeline. Giving
+            the model read-only Kubernetes tools (list namespaces, query pods, inspect cluster status)
+            inside a tool-calling loop is the biggest open experiment &mdash; it turns the chatbot from
+            a document-answerer into an operator.
+          </p>
+          <p>
+            <strong>intent-driven routing.</strong> The router classifies intent but the graph ignores
+            it &mdash; every intent hits the same retrieval path. Routing by category (filter Qdrant by
+            topic, tune top_k per intent) is cheap and high-impact.
           </p>
           <p>
             <strong>semantic caching.</strong> The current cache matches exact queries. A semantic cache
             using embedding similarity would allow &ldquo;how do I scale pods&rdquo; and &ldquo;how to
             autoscale deployments&rdquo; to share a cache entry.
+          </p>
+          <p>
+            <strong>multi-modal support.</strong> Users should be able to upload architecture diagrams
+            or YAML manifests and have the system analyze them visually or structurally.
           </p>
           <p>
             <strong>aws deployment.</strong> The Dockerfile and docker-compose.yml exist. Next step is

@@ -1,9 +1,8 @@
 import hashlib
 import json
-import uuid
 
 import logfire
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -289,16 +288,6 @@ async def chat_stream(req: ChatRequest, session: AsyncSession = Depends(get_sess
             )
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
-
-
-@router.post("/upload")
-async def upload_file(file: UploadFile = File(...)):
-    return {
-        "file_id": str(uuid.uuid4()),
-        "filename": file.filename,
-        "type": file.content_type,
-        "preview": None,
-    }
 
 
 @router.get("/{conv_id}/memory")

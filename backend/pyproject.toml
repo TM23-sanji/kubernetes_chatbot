@@ -50,6 +50,8 @@ dependencies = [
     "nest-asyncio",
     "streamlit",
     "mem0ai>=2.0.17",
+    "rapidocr-onnxruntime>=1.4.4",
+    "pymupdf>=1.28.2",
 ]
 [project.optional-dependencies]
 # Local-embedding / guardrail stacks (pull torch + CUDA; not needed at runtime,

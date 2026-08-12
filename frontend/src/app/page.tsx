@@ -172,16 +172,55 @@ export default function Home() {
     }
   };
 
-  const handleAttach = async (file: File) => {
-    const formData = new FormData();
-    formData.append("file", file);
+  const handleAttach = async (files: File[]) => {
+    setLoading(true);
+    const userTs = Date.now();
+    const tempId = `upload-${userTs}`;
+    setMessages((prev) => [
+      ...prev,
+      { id: tempId, role: "user", content: `Uploading ${files.length} document(s)...` },
+    ]);
+
     try {
-      await fetch(`${API_BASE}/api/chat/upload`, {
-        method: "POST",
-        body: formData,
-      });
-    } catch {
-      // silent
+      for (const file of files) {
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await fetch(`${API_BASE}/api/ingest/upload`, {
+          method: "POST",
+          body: formData,
+        });
+        if (!res.ok) {
+          let detail = `Upload failed (${res.status})`;
+          try {
+            const err = await res.json();
+            if (err.detail) detail = typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail);
+          } catch {
+            // ignore
+          }
+          throw new Error(detail);
+        }
+        const data = await res.json();
+        const suffix = data.skipped
+          ? " (empty content — nothing indexed)"
+          : ` — ${data.chunk_count} chunk(s) indexed`;
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `uploaded-${data.file_id}`,
+            role: "assistant",
+            content: `Indexed \`${file.name}\`${suffix}`,
+          },
+        ]);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Upload failed";
+      setMessages((prev) => [
+        ...prev,
+        { id: `upload-err-${Date.now()}`, role: "assistant", content: msg },
+      ]);
+    } finally {
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      setLoading(false);
     }
   };
 
@@ -262,7 +301,7 @@ export default function Home() {
             </div>
           </div>
         )}
-        <ChatInput onSend={handleSend} onAttach={handleAttach} loading={loading} />
+        <ChatInput onSend={handleSend} onAttach={handleAttach} uploading={loading} loading={loading} />
       </main>
       <MemorySidebar
         open={memoryOpen}
