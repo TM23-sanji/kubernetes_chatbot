@@ -8,6 +8,8 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.graph import agent_graph
+from app.config import settings
+from app.core.memory import memory_manager
 from app.db.postgres import db_manager
 from app.db import repository as repo
 from app.db.redis import redis_manager
@@ -17,10 +19,9 @@ def sse_event(event_type: str, data: object) -> str:
     return f"data: {json.dumps({event_type: data}, default=str)}\n\n"
 
 
-async def _load_history(session: AsyncSession, conv_id: str) -> str:
-    msgs = await repo.get_messages(session, conv_id)
-    prev = msgs[:-1]
-    recent = prev[-2:]
+def _format_history(msgs: list, window: int = 1) -> str:
+    prev = msgs[:-1]  # exclude the current user message
+    recent = prev[-window:]
     if not recent:
         return ""
     lines = []
@@ -28,6 +29,16 @@ async def _load_history(session: AsyncSession, conv_id: str) -> str:
         role = "User" if m.role == "user" else "Assistant"
         lines.append(f"{role}: {m.content}")
     return "\n".join(lines)
+
+
+def _turn_count(msgs: list) -> int:
+    return sum(1 for m in msgs if m.role == "user")
+
+
+def _needs_compaction(msgs: list) -> bool:
+    limit = settings.memory_compaction_every
+    count = _turn_count(msgs)
+    return count > limit and (count - 1) % limit == 0
 
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -82,7 +93,19 @@ async def chat(req: ChatRequest, session: AsyncSession = Depends(get_session)):
         cached = None
 
     if not cached:
-        history = await _load_history(session, conv_id)
+        msgs = await repo.get_messages(session, conv_id)
+        if _needs_compaction(msgs):
+            completed = [
+                {"role": m.role, "content": m.content}
+                for m in msgs[:-1]
+                if m.role in ("user", "assistant")
+            ]
+            await memory_manager.add_turns(conv_id, completed)
+        memory_context_list = []
+        if _turn_count(msgs) > settings.memory_compaction_every:
+            memory_context_list = await memory_manager.search(conv_id, req.message)
+        memory_context = "\n".join(f"- {m}" for m in memory_context_list)
+        history = _format_history(msgs, window=1)
         initial_state = {
             "user_query": req.message,
             "messages": [],
@@ -95,6 +118,7 @@ async def chat(req: ChatRequest, session: AsyncSession = Depends(get_session)):
             "guardrail_input_passed": True,
             "guardrail_output_passed": True,
             "conversation_history": history,
+            "memory_context": memory_context,
         }
 
         result = await agent_graph.ainvoke(initial_state)
@@ -144,6 +168,21 @@ async def chat_stream(req: ChatRequest, session: AsyncSession = Depends(get_sess
             raise HTTPException(status_code=404, detail="Conversation not found")
     await repo.add_message(session, conv_id, "user", req.message)
 
+    msgs = await repo.get_messages(session, conv_id)
+    should_compact = _needs_compaction(msgs)
+    if should_compact:
+        completed = [
+            {"role": m.role, "content": m.content}
+            for m in msgs[:-1]
+            if m.role in ("user", "assistant")
+        ]
+        await memory_manager.add_turns(conv_id, completed)
+    memory_context_list = []
+    if _turn_count(msgs) > settings.memory_compaction_every:
+        memory_context_list = await memory_manager.search(conv_id, req.message)
+    memory_context = "\n".join(f"- {m}" for m in memory_context_list)
+    history = _format_history(msgs, window=1)
+
     query_hash = hashlib.sha256(req.message.encode()).hexdigest()
     cache_key = f"response:{query_hash}"
     cached_data = None
@@ -155,7 +194,6 @@ async def chat_stream(req: ChatRequest, session: AsyncSession = Depends(get_sess
     except Exception:
         pass
 
-    history = await _load_history(session, conv_id)
     initial_state: dict = {
         "user_query": req.message,
         "messages": [],
@@ -168,9 +206,16 @@ async def chat_stream(req: ChatRequest, session: AsyncSession = Depends(get_sess
         "guardrail_input_passed": True,
         "guardrail_output_passed": True,
         "conversation_history": history,
+        "memory_context": memory_context,
     }
 
     async def event_generator():
+        if should_compact:
+            yield sse_event("thinking", {
+                "stage": "compaction",
+                "detail": "Compacting conversation memory…",
+                "duration_ms": 0,
+            })
         if cached_data:
             steps = cached_data["thinking_steps"] + [
                 {"stage": "cache", "detail": "full response cache hit — skipped all LLM calls", "duration_ms": 0}
@@ -243,6 +288,22 @@ async def chat_stream(req: ChatRequest, session: AsyncSession = Depends(get_sess
             )
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+@router.get("/{conv_id}/memory")
+async def get_memory(conv_id: str):
+    memories = await memory_manager.get_all(conv_id)
+    return [
+        {
+            "id": m.get("id"),
+            "memory": m.get("memory", ""),
+            "category": (m.get("categories") or [None])[0],
+            "score": m.get("score"),
+            "created_at": m.get("created_at"),
+            "updated_at": m.get("updated_at"),
+        }
+        for m in memories
+    ]
 
 
 @router.get("/{conv_id}/history")

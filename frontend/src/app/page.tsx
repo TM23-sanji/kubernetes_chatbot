@@ -12,7 +12,7 @@ import {
 import Sidebar from "@/components/Sidebar";
 import ChatInput from "@/components/ChatInput";
 import ChatMessage from "@/components/ChatMessage";
-import { CornerMarkers } from "@/components/CornerMarkers";
+import MemorySidebar from "@/components/MemorySidebar";
 
 interface Message {
   id: string;
@@ -20,6 +20,13 @@ interface Message {
   content: string;
   sources?: { file: string; chunk: number; score: number }[];
   thinking_steps?: { stage: string; detail: string; duration_ms: number }[];
+}
+
+interface MemoryItem {
+  id: string;
+  memory: string;
+  category: string | null;
+  score: number | null;
 }
 
 const quickActions = [
@@ -35,6 +42,8 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [memoryOpen, setMemoryOpen] = useState(true);
+  const [memories, setMemories] = useState<MemoryItem[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
@@ -52,17 +61,28 @@ export default function Home() {
     }
   }, []);
 
-  useEffect(() => {
-    if (activeConversationId) {
-      loadMessages(activeConversationId);
-    } else {
-      setMessages([]);
+  const loadMemory = useCallback(async (convId: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/chat/${convId}/memory`);
+      if (res.ok) {
+        setMemories(await res.json());
+      }
+    } catch {
+      // silent
     }
-  }, [activeConversationId, loadMessages, conversationKey]);
+  }, []);
+
+  useEffect(() => {
+    if (!activeConversationId) return;
+    void (async () => {
+      await loadMessages(activeConversationId);
+      await loadMemory(activeConversationId);
+    })();
+  }, [activeConversationId, loadMessages, loadMemory, conversationKey]);
 
   const handleSend = async (message: string) => {
     setLoading(true);
-    const userTs = Date.now();
+    const userTs = crypto.randomUUID();
     const tempUserId = `user-${userTs}`;
     const assistantId = `stream-${userTs}`;
     setMessages((prev) => [
@@ -122,12 +142,13 @@ export default function Home() {
             } else if (parsed.done) {
               const d = parsed.done;
               setActiveConversationId(d.conversation_id);
+              loadMemory(d.conversation_id);
               setMessages((prev) => {
                 const updated = [...prev];
                 const idx = updated.findIndex((m) => m.id === assistantId);
                 if (idx === -1) return prev;
                 updated[idx] = {
-                  id: d.conversation_id + "-assistant",
+                  id: assistantId,
                   role: "assistant",
                   content: d.reply,
                   sources: d.sources,
@@ -206,11 +227,13 @@ export default function Home() {
   const handleNewConversation = () => {
     setActiveConversationId(null);
     setMessages([]);
+    setMemories([]);
     setConversationKey((k) => k + 1);
   };
 
   const handleSelectConversation = (id: string | null) => {
     setActiveConversationId(id);
+    if (id === null) setMemories([]);
     setConversationKey((k) => k + 1);
   };
 
@@ -280,6 +303,11 @@ export default function Home() {
         )}
         <ChatInput onSend={handleSend} onAttach={handleAttach} uploading={loading} loading={loading} />
       </main>
+      <MemorySidebar
+        open={memoryOpen}
+        onToggle={() => setMemoryOpen(!memoryOpen)}
+        memories={memories}
+      />
     </div>
   );
 }

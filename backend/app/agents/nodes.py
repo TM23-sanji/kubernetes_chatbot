@@ -147,6 +147,9 @@ async def generate_node(state: dict) -> dict:
     historical = state.get("conversation_history", "")
     if historical:
         parts.append(f"Conversation history:\n{historical}")
+    memory_context = state.get("memory_context", "")
+    if memory_context:
+        parts.append(f"Memory:\n{memory_context}")
     parts.append(f"Current Question: {query}")
     user_prompt = "\n\n".join(parts)
 

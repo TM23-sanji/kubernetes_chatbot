@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.postgres import db_manager
 from app.db import repository as repo
+from app.core.memory import memory_manager
 
 router = APIRouter(prefix="/conversations", tags=["conversations"])
 
@@ -49,6 +50,7 @@ async def delete_conversation(conv_id: str, session: AsyncSession = Depends(get_
     deleted = await repo.delete_conversation(session, conv_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Conversation not found")
+    await memory_manager.delete_conversation(conv_id)
     return {"ok": True}
 
 
