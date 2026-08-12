@@ -4,3 +4,6 @@ __pycache__/
 node_modules/
 .next/
 dist/
+
+# Database backups (created during disk cleanup; never commit secrets/data)
+docker_backup/

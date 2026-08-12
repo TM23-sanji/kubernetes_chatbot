@@ -1966,7 +1966,6 @@ source = { virtual = "." }
 dependencies = [
     { name = "asyncpg" },
     { name = "beautifulsoup4" },
-    { name = "deepeval" },
     { name = "fastapi" },
     { name = "flashrank" },
     { name = "google-generativeai" },
@@ -1975,17 +1974,14 @@ dependencies = [
     { name = "langchain-google-genai" },
     { name = "langchain-google-vertexai" },
     { name = "langchain-groq" },
-    { name = "langchain-nvidia-ai-endpoints" },
     { name = "langchain-openai" },
     { name = "langchain-text-splitters" },
-    { name = "langfuse" },
     { name = "langgraph" },
     { name = "langsmith" },
     { name = "llvmlite" },
     { name = "logfire", extra = ["asyncpg", "fastapi", "httpx", "requests"] },
     { name = "loguru" },
     { name = "mem0ai" },
-    { name = "nemoguardrails" },
     { name = "nest-asyncio" },
     { name = "numba" },
     { name = "numpy" },
@@ -2000,10 +1996,8 @@ dependencies = [
     { name = "python-pptx" },
     { name = "pytz" },
     { name = "qdrant-client" },
-    { name = "ragas" },
     { name = "redis" },
     { name = "requests" },
-    { name = "sentence-transformers" },
     { name = "streamlit" },
     { name = "unstructured" },
     { name = "uvicorn", extra = ["standard"] },
@@ -2016,12 +2010,22 @@ dev = [
     { name = "pytest-asyncio" },
     { name = "ruff" },
 ]
+eval = [
+    { name = "deepeval" },
+    { name = "langfuse" },
+    { name = "ragas" },
+]
+ml = [
+    { name = "langchain-nvidia-ai-endpoints" },
+    { name = "nemoguardrails" },
+    { name = "sentence-transformers" },
+]
 
 [package.metadata]
 requires-dist = [
     { name = "asyncpg" },
     { name = "beautifulsoup4" },
-    { name = "deepeval" },
+    { name = "deepeval", marker = "extra == 'eval'" },
     { name = "fastapi" },
     { name = "flashrank" },
     { name = "google-generativeai" },
@@ -2031,17 +2035,17 @@ requires-dist = [
     { name = "langchain-google-genai" },
     { name = "langchain-google-vertexai" },
     { name = "langchain-groq" },
-    { name = "langchain-nvidia-ai-endpoints" },
+    { name = "langchain-nvidia-ai-endpoints", marker = "extra == 'ml'" },
     { name = "langchain-openai" },
     { name = "langchain-text-splitters" },
-    { name = "langfuse" },
+    { name = "langfuse", marker = "extra == 'eval'" },
     { name = "langgraph" },
     { name = "langsmith" },
     { name = "llvmlite", specifier = ">=0.40.0" },
     { name = "logfire", extras = ["asyncpg", "fastapi", "httpx", "requests"] },
     { name = "loguru" },
     { name = "mem0ai", specifier = ">=2.0.17" },
-    { name = "nemoguardrails" },
+    { name = "nemoguardrails", marker = "extra == 'ml'" },
     { name = "nest-asyncio" },
     { name = "numba", specifier = ">=0.57.1" },
     { name = "numpy" },
@@ -2058,16 +2062,16 @@ requires-dist = [
     { name = "python-pptx" },
     { name = "pytz" },
     { name = "qdrant-client" },
-    { name = "ragas" },
+    { name = "ragas", marker = "extra == 'eval'" },
     { name = "redis" },
     { name = "requests" },
     { name = "ruff", marker = "extra == 'dev'" },
-    { name = "sentence-transformers" },
+    { name = "sentence-transformers", marker = "extra == 'ml'" },
     { name = "streamlit" },
     { name = "unstructured" },
     { name = "uvicorn", extras = ["standard"] },
 ]
-provides-extras = ["dev"]
+provides-extras = ["ml", "eval", "dev"]
 
 [[package]]
 name = "langchain"

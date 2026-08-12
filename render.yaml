@@ -1,0 +1,83 @@
+# Render Blueprint — Kubernetes RAG Chatbot
+# Deploy: Render Dashboard -> New -> Blueprint -> select this repo.
+# Values marked `sync: false` are prompted once; paste them from the local
+# root `.env` (backend/.env keys are NOT used at runtime).
+
+services:
+  - type: web
+    name: k8s-rag-backend
+    runtime: docker
+    rootDir: backend
+    plan: free
+    region: oregon
+    healthCheckPath: /api/health
+    envVars:
+      - key: PORT
+        value: "8000"
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_FALLBACK_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: PORTKEY_API_KEY
+        sync: false
+      - key: PORTKEY_PRIMARY_CONFIG_ID
+        sync: false
+      - key: PORTKEY_PRIMARY_SLUG
+        value: marathon-api
+      - key: PORTKEY_FALLBACK_SLUG
+        value: anthropic-fallback
+      - key: NEON_DB_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+      - key: REDIS_USER_KEY
+        sync: false
+      - key: QDRANT_CLUSTER_ENDPOINT
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
+      - key: MEM0_API_KEY
+        sync: false
+      - key: JINA_API_KEY
+        sync: false
+      - key: JUDGE_OPENAI_API_KEY
+        sync: false
+      - key: LOGFIRE_TOKEN
+        sync: false
+      - key: LOGFIRE_BASE_URL
+        sync: false
+      - key: LANGSMITH_API_KEY
+        sync: false
+      - key: LANGSMITH_ENDPOINT
+        value: https://api.smith.langchain.com
+      - key: LANGSMITH_PROJECT
+        value: kubernetes_chatbot
+      - key: LANGSMITH_TRACING
+        value: "true"
+      - key: RAG_API_KEY
+        sync: false
+      - key: RATE_LIMIT_PER_MINUTE
+        value: "20"
+      - key: BACKEND_URL
+        value: https://k8s-rag-backend.onrender.com
+
+  - type: web
+    name: k8s-rag-frontend
+    runtime: docker
+    rootDir: frontend
+    plan: free
+    region: oregon
+    healthCheckPath: /
+    envVars:
+      - key: PORT
+        value: "3000"
+      # Baked into the browser bundle at build time. Must match the backend's
+      # actual onrender.com URL (adjust if Render assigns a hashed subdomain).
+      - key: NEXT_PUBLIC_API_URL
+        value: https://k8s-rag-backend.onrender.com

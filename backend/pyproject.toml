@@ -13,7 +13,6 @@ dependencies = [
     # LLM & Embeddings
     "google-generativeai",
     "langchain-google-genai",
-    "sentence-transformers",
     # Vector DB & Retrieval
     "qdrant-client",
     "flashrank",
@@ -39,15 +38,8 @@ dependencies = [
     "langsmith",
     "logfire[asyncpg,fastapi,httpx,requests]",
     "loguru",
-    # Guardrails
-    "nemoguardrails",
-    "langchain-nvidia-ai-endpoints",
     # Gateway
     "portkey-ai",
-    # Evaluation
-    "ragas",
-    "deepeval",
-    "langfuse",
     # Persistence & Cache
     "redis",
     "psycopg2-binary",
@@ -60,4 +52,17 @@ dependencies = [
     "mem0ai>=2.0.17",
 ]
 [project.optional-dependencies]
+# Local-embedding / guardrail stacks (pull torch + CUDA; not needed at runtime,
+# which uses the Gemini embeddings API and LLM-based guardrails).
+ml = [
+    "sentence-transformers",
+    "nemoguardrails",
+    "langchain-nvidia-ai-endpoints",
+]
+# RAGAS/deepeval evaluation suites (tests/run_eval.py, test_pipeline.py).
+eval = [
+    "ragas",
+    "deepeval",
+    "langfuse",
+]
 dev = ["pytest", "pytest-asyncio", "httpx", "ruff"]
