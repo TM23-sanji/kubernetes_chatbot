@@ -33,29 +33,41 @@ class LLMManager:
             base_url=portkey_url,
             api_key=settings.portkey_api_key,
         )
-        self.chat_model = ChatOpenAI(
-            model="@kubernetes-chatbot/llama-3.3-70b-versatile",
-            base_url=portkey_url,
-            api_key=settings.portkey_api_key,
-            streaming=True,
-            temperature=0.1,
-            max_tokens=2048,
-            max_retries=10,
-            request_timeout=180,
-        )
         if settings.groq_api_key:
+            groq_url = "https://api.groq.com/openai/v1"
             self.guard_client = AsyncOpenAI(
-                base_url="https://api.groq.com/openai/v1",
+                base_url=groq_url,
                 api_key=settings.groq_api_key,
             )
+            self.chat_model = ChatOpenAI(
+                model=settings.groq_main_model,
+                base_url=groq_url,
+                api_key=settings.groq_api_key,
+                streaming=True,
+                temperature=0.1,
+                max_tokens=2048,
+                max_retries=10,
+                request_timeout=180,
+            )
+        else:
+            self.chat_model = ChatOpenAI(
+                model="@kubernetes-chatbot/llama-3.3-70b-versatile",
+                base_url=portkey_url,
+                api_key=settings.portkey_api_key,
+                streaming=True,
+                temperature=0.1,
+                max_tokens=2048,
+                max_retries=10,
+                request_timeout=180,
+            )
 
-    async def _call_with_retry(self, model: str, messages: list, max_tokens: int, temperature: float):
+    async def _call_with_retry(self, client, model: str, messages: list, max_tokens: int, temperature: float):
         from openai import RateLimitError
 
         last_err = None
         for attempt in range(_MAX_RETRIES):
             try:
-                return await self.client.chat.completions.create(
+                return await client.chat.completions.create(
                     model=model,
                     messages=messages,
                     max_tokens=max_tokens,
@@ -71,8 +83,15 @@ class LLMManager:
         raise last_err
 
     async def generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 1024) -> str:
+        if self.guard_client:
+            client = self.guard_client
+            model = settings.groq_main_model
+        else:
+            client = self.client
+            model = "@kubernetes-chatbot/llama-3.3-70b-versatile"
         response = await self._call_with_retry(
-            model="@kubernetes-chatbot/llama-3.3-70b-versatile",
+            client,
+            model,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
@@ -86,7 +105,7 @@ class LLMManager:
         from openai import RateLimitError
 
         client = self.guard_client or self.client
-        model = "llama-3.1-8b-instant" if self.guard_client else "@kubernetes-chatbot/llama-3.3-70b-versatile"
+        model = settings.groq_model if self.guard_client else "@kubernetes-chatbot/llama-3.3-70b-versatile"
         last_err = None
         for attempt in range(_MAX_RETRIES):
             try:

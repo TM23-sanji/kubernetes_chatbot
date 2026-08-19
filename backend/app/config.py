@@ -5,6 +5,8 @@ from typing import Optional
 class Settings(BaseSettings):
     groq_api_key: str = ""
     groq_fallback_api_key: str = ""
+    groq_model: str = "openai/gpt-oss-20b"
+    groq_main_model: str = "openai/gpt-oss-20b"
 
     qdrant_api_key: str = ""
     qdrant_cluster_endpoint: str = ""

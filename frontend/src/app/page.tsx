@@ -156,6 +156,19 @@ export default function Home() {
                 };
                 return updated;
               });
+            } else if (parsed.error) {
+              const detail = parsed.error.detail || "Something went wrong";
+              setMessages((prev) => {
+                const updated = [...prev];
+                const idx = updated.findIndex((m) => m.id === assistantId);
+                if (idx === -1) return prev;
+                updated[idx] = {
+                  id: assistantId,
+                  role: "assistant",
+                  content: `Sorry, something went wrong: ${detail}`,
+                };
+                return updated;
+              });
             }
           } catch {
             // skip malformed JSON
