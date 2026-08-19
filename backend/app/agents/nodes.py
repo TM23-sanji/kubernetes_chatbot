@@ -165,7 +165,7 @@ async def generate_node(state: dict) -> dict:
     print(f"[perf] generate.format: {format_time:.0f}ms | generate.llm: {llm_time:.0f}ms | total: {duration:.0f}ms")
     step = ThinkingStep(
         stage="llm",
-        detail=f"@kubernetes-chatbot/llama3-70b-8192 · {round(duration, 0)}ms · {len(answer)} chars",
+        detail=f"{llm_manager.chat_model.model_name} · {round(duration, 0)}ms · {len(answer)} chars",
         duration_ms=round(duration, 2),
     )
     return {"generated_answer": answer, "sources": sources, "thinking_steps": [step]}
