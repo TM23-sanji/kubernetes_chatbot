@@ -169,10 +169,10 @@
           </p>
           <p>
             The stack is designed for production from day one. A LangGraph agent orchestrates a six-node
-            pipeline. Portkey sits between the agent and upstream LLMs (Groq primary, OpenAI fallback) with
-            observability, caching, and failover. Gemini <code>gemini-embedding-001</code> produces 3072-dimensional
-            embeddings stored in Qdrant Cloud with COSINE distance. FlashRank cross-encoders rerank the
-            top 10 results down to the 5 most relevant chunks.
+            pipeline. Groq (<code>openai/gpt-oss-20b</code>) powers both the main generator and the
+            guardrail calls, with Portkey as the fallback gateway. Gemini <code>gemini-embedding-001</code>
+            produces 3072-dimensional embeddings stored in Qdrant Cloud with COSINE distance. FlashRank
+            cross-encoders rerank the top 10 results down to the 5 most relevant chunks.
           </p>
           <p>
             The frontend is a Next.js App Router application with a sidebar for conversation management,
@@ -185,7 +185,7 @@
           <h2>the architecture</h2>
           <p>
             The full architecture is documented in the diagram below. Each component runs as a managed
-            service or is containerized for ECS Fargate deployment.
+            service or is containerized for deployment.
           </p>
           <p>
             <img src="image.png" alt="architecture diagram showing the full system stack from frontend to vector database" style="max-width:100%;border:1px solid #3a3a3a;border-radius:4px;margin:1rem 0;" />
@@ -205,7 +205,7 @@
             <strong>4. rerank</strong> &mdash; applies a FlashRank cross-encoder to rescore and select the
             top 5 chunks, improving precision over raw vector similarity.<br />
             <strong>5. generate</strong> &mdash; builds a prompt with the reranked context and calls the
-            LLM via Portkey to produce the final answer.<br />
+            LLM via Groq to produce the final answer.<br />
             <strong>6. output guard</strong> &mdash; verifies that the answer is grounded in the retrieved
             sources, returning a groundedness fraction.
           </p>
@@ -233,10 +233,10 @@ Return to Frontend</pre>
 
           <h3>key stack decisions</h3>
           <p>
-            <strong>Portkey over direct API calls.</strong> Portkey provides a unified gateway with
-            configurable fallback routing, retry logic, and observability. The primary route is Groq
-            (<code>llama-3.3-70b-versatile</code>) and the fallback is OpenAI. This means if Groq is
-            rate-limited or down, requests automatically route to OpenAI without code changes.
+            <strong>Groq direct with Portkey fallback.</strong> All LLM traffic runs through Groq&rsquo;s
+            <code>openai/gpt-oss-20b</code> for low-latency inference. A separate Groq client handles
+            guardrail calls so they never compete with the main generator for tokens. Portkey remains
+            the gateway fallback when no Groq key is configured.
           </p>
           <p>
             <strong>Gemini embeddings.</strong> We use Google&rsquo;s <code>gemini-embedding-001</code>
@@ -249,9 +249,9 @@ Return to Frontend</pre>
             Upserts use 120s timeout and 50-point batches.
           </p>
           <p>
-            <strong>FlashRank over Cohere/LLM reranking.</strong> The <code>ms-marco-MiniLM-L-12-v2</code>
+            <strong>FlashRank over Cohere/LLM reranking.</strong> The <code>ms-marco-TinyBERT-L-2-v2</code>
             cross-encoder runs locally with no API costs or latency. It reranks 10 chunks to 5 in
-            under 100ms on CPU.
+            well under 100ms on CPU.
           </p>
           <p>
             <strong>NeonDB (serverless PostgreSQL).</strong> We use asyncpg for connection pooling and
@@ -271,7 +271,7 @@ Return to Frontend</pre>
           <p>
             Beyond the diagram, it helps to see the actual code that wires this together. The whole
             pipeline is a single FastAPI process with lazy-initialized singletons for every external
-            dependency &mdash; Qdrant, Gemini embeddings, the Portkey-backed LLM, and the FlashRank
+            dependency &mdash; Qdrant, Gemini embeddings, the Groq-backed LLM, and the FlashRank
             reranker. They are bootstrapped once at startup inside the app&rsquo;s lifespan and closed
             cleanly on shutdown:
           </p>
@@ -355,7 +355,7 @@ class AgentState(TypedDict):
           <h3>guardrails</h3>
           <p>
             The input guard is a small dedicated LLM call that answers only PASS or REJECT. It runs
-            against a separate Groq client (<code>llama-3.1-8b-instant</code>) so guardrail traffic
+            against a separate Groq client (<code>openai/gpt-oss-20b</code>) so guardrail traffic
             never competes with the main generation model for tokens.
           </p>
           <pre>
@@ -392,8 +392,8 @@ async def rerank_node(state: dict) -&gt; dict:
 
           <h3>generation with history</h3>
           <p>
-            The generate node builds a single prompt from the reranked context, the previous two
-            conversation turns, and the current question. The context block is prefixed with source
+            The generate node builds a single prompt from the reranked context, the previous
+            conversation turn, and the current question. The context block is prefixed with source
             names and relevance scores so the model can cite claims.
           </p>
           <pre>
@@ -412,16 +412,16 @@ response = await llm_manager.chat_model.ainvoke([
 
           <h3>the llm layer</h3>
           <p>
-            All LLM traffic goes through Portkey as an OpenAI-compatible gateway. The main generator
-            uses <code>llama-3.3-70b-versatile</code>; guardrails use Groq directly. A shared retry
-            loop parses Groq&rsquo;s &ldquo;try again in XmYs&rdquo; rate-limit message and backs off
-            exponentially instead of failing.
+            Both the main generator and the guardrails run on Groq with <code>openai/gpt-oss-20b</code>;
+            Portkey is the fallback gateway when no Groq key is set. A shared retry loop parses
+            Groq&rsquo;s &ldquo;try again in XmYs&rdquo; rate-limit message and backs off exponentially
+            instead of failing.
           </p>
           <pre>
 self.chat_model = ChatOpenAI(
-    model="@kubernetes-chatbot/llama-3.3-70b-versatile",
-    base_url="https://api.portkey.ai/v1",
-    api_key=settings.portkey_api_key,
+    model=settings.groq_main_model,  # openai/gpt-oss-20b
+    base_url="https://api.groq.com/openai/v1",
+    api_key=settings.groq_api_key,
     streaming=True,
     temperature=0.1,
     max_tokens=2048,
@@ -587,15 +587,16 @@ def stage_2_filter(chunk_id: str, text: str) -&gt; dict:
             dataset. Results persist to the <code>EvalRun</code> table with data and prompt versions.
           </p>
           <p>
-            <strong>document ingestion.</strong> The upload endpoint is still a stub. Real document
-            upload (save &rarr; parse &rarr; chunk &rarr; embed &rarr; ingest) and incremental
-            re-ingestion via file checksums is the next milestone, so docs can be added without a
-            full re-index.
+            <strong>document ingestion.</strong> Live &mdash; <code>POST /api/ingest/upload</code>
+            accepts PDFs and images, OCRs them (RapidOCR + PyMuPDF), cleans and dedups (MinHash + LSH),
+            then chunks, embeds, and ingests into Qdrant. Ingested files are tracked by checksum with
+            list/delete/re-ingest endpoints.
           </p>
           <p>
-            <strong>proper memory.</strong> Today history is just the last two turns replayed as text.
-            The plan is true conversation state via a LangGraph checkpointer &mdash; so the agent can
-            remember across a session without copying strings into every prompt.
+            <strong>memory.</strong> Conversations now persist long-term state via mem0 &mdash; the
+            agent compacts every 5 turns into a searchable memory store and pulls relevant memories
+            back into the prompt. A <code>/api/chat/{id}/memory</code> endpoint exposes what was stored
+            per conversation.
           </p>
           <p>
             <strong>real tool calls.</strong> The graph is currently a fixed six-node pipeline. Giving
@@ -618,8 +619,9 @@ def stage_2_filter(chunk_id: str, text: str) -&gt; dict:
             or YAML manifests and have the system analyze them visually or structurally.
           </p>
           <p>
-            <strong>aws deployment.</strong> The Dockerfile and docker-compose.yml exist. Next step is
-            pushing to ECR and deploying on ECS Fargate with CloudFront in front of the Next.js app.
+            <strong>cloud deployment.</strong> The Docker images and docker-compose.yml now deploy to
+            Render &mdash; the backend (FastAPI, port 8000) and frontend (Next.js, port 3000) run as
+            free-tier web services wired together by a Render Blueprint, with auto-deploys on push.
           </p>
         </section>
 
